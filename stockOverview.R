@@ -1,37 +1,88 @@
 rm(list = ls())
 ################
-
-load("~/Data Products/allDataPlotOverview_v001.rdat")
-
-library(data.table)
-library(XML)
-source("~/git/ices-dk/rICES/R/getStockSummary.R")
-tt <- getSummaryTable(year = 2014)
-referencePoints <- tt$referencePoints
-keys <- tt$keys
-summaryTable <- tt$summaryTable
-
+library(rICES)
+library(plyr)
+library(reshape2)
+#
+# Load data on ecosystem, books, guilds, etc.
+load("allDataPlotOverview_v001.rdat")
 stockInfo <- allDat[,c("ICES.Book", "Species", "Area", 
                        "Stock.code", "Type")]
 stockInfo <- stockInfo[!duplicated(stockInfo),]
+#
+stockDF <- getSummaryTable(year = 2015)
+#
+# Merge stockDF tables with stockInfo
+stockTable <- merge(stockDF$referencePoints, stockDF$keys, by = c("FishStockName", "AssessmentYear", "key"))
+stockTable <- merge(stockDF$summaryTable, 
+                    stockTable, 
+                    by.x = c("fishstock", "AssessmentYear"),
+                    by.y = c("FishStockName", "AssessmentYear"))
+stockTable <- merge(stockInfo, stockTable, by.x = "Stock.code", by.y = "fishstock", all = T)
+#
+# Calculate F/Faverage and SSB/SSBaverage
+stockTable <- ddply(stockTable, .(AssessmentYear, Stock.code), mutate,
+                    Faverage = mean(F, na.rm = T),
+                    SSBaverage = mean(SSB, na.rm = T))
+#
+stockTable <- ddply(stockTable, .(Stock.code), mutate,
+                    FFavg = F/Faverage,
+                    SSBSSBavg = SSB/SSBaverage,
+                    FFmsy = F/FMSY,
+                    SSBMSYBtrig = SSB/MSYBtrigger)
+#
+stockTable$ECOREGION <- ifelse(is.na(stockTable$EcoRegion), stockTable$ICES.Book, stockTable$EcoRegion)
+stockTable$speciesID <- gsub( "-.*$", "", as.character(stockTable$Stock.code))
+# Give the same guild to species that are already defined
+speciesGuild <- ddply(stockTable, .(Species), summarize,
+                      speciesGuild = unique(speciesID))
 
-fMetric <- c("F", "HR", "F/Fmsy", "F/average")
-bMetric <- c("SSB", "B/Bmsy", "B/Btrigger", "SSB/average", "TV abund", "B")
+tm <- stockTable[is.na(stockTable$Type),]
+#
+df <- melt(stockTable, 
+           id.vars = c("AssessmentYear", "ECOREGION", "Type", "Stock.code", "Year"),
+           measure.vars = c("FFavg", "SSBSSBavg", "FFmsy", "SSBMSYBtrig"),
+           variable.name = "VARIABLE",
+           value.name = "VALUE")
+#
+colnames(df) <- c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR", "VARIABLE", "VALUE")
 #
 
 
-
-
-
-
-
-
-
+tr <- df[!apply(df, 1, function(x) all(is.na(x))),]
+# badsMSYBtrigger <- unique(stockTable$Stock.code[stockTable$MSYBtrigger == 0 ])
+# badsFMSY <- unique(stockTable$Stock.code[stockTable$FMSY == 0 ])
+#
+fMetric <- c("F", "HR", "F/Fmsy", "F/average")
+bMetric <- c("SSB", "B/Bmsy", "B/Btrigger", "SSB/average", "TV abund", "B")
+#
 Book <- "Bay of Biscay and Iberian Coast"
 Guild <- "Pelagic"
 All.Stocks <- T
 All.Books <- T
 #
+#
+#
+tt <- df[df$ECOREGION == "Greater North Sea" &
+         df$GUILD == "Demersal",]
+
+#F/Faverage SSB/SSBaverage
+plotAVG <- df[df$ECOREGION == "Greater North Sea" &
+              df$GUILD == "Demersal" &
+              df$VARIABLE %in% c("FFavg", "SSBSSBavg"),]
+#
+td <- unique(df$STOCKID[is.na(df$GUILD)])
+
+
+unique(plotAVG$STOCKID)
+#
+plotAVG.F <- plotAVG[plotAVG$VARIABLE == "FFavg",]
+plotAVG.SSB <- plotAVG[plotAVG$VARIABLE == "SSBSSBavg",]
+
+  
+
+
+
 plotFun <- function(Guild, Book, All.Stocks = F, All.Books = F) {
   #
   if(All.Stocks == T) {
