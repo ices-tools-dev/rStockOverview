@@ -5,10 +5,10 @@ library(plyr)
 library(reshape2)
 library(RColorBrewer)
 library(extrafont)
-# library(XML)
-# library(parallel)
-# library(foreach)
-# library(data.table)
+library(XML)
+library(parallel)
+library(foreach)
+library(data.table)
 plotDir = "output/"
 # This may take a minute to get the correct font
 fontTable <- fonttable()
@@ -26,16 +26,58 @@ stockInfo <- stockInfo[!duplicated(stockInfo),]
 #
 # Load most recent data from Stock Assessment Graphs database
 source("getTestStockSummary.R")
-stockDF <- getTestSummaryTable(year = 2015)
-# stockDF <- getSummaryTable(year = 2015)
+stockDFprod <- getTestSummaryTable(year = 2015)
+stockDF2015 <- getSummaryTable(year = 2015)
+stockDF2014 <- getSummaryTable(year = 2014)
+#
+stockDFprod$summaryTable$AssessmentYear <- "PROD"
+stockDFprod$referencePoints$AssessmentYear <- "PROD"
+stockDFprod$keys$AssessmentYear <- "PROD"
+#
+keys2014 <- tolower(stockDF2014$keys$FishStockName[stockDF2014$keys$Status == " Published "])
+keys2015 <- tolower(stockDF2015$keys$FishStockName[stockDF2015$keys$Status == " Published "])
+prodKeys <- unique(stockDFprod$summaryTable$fishstock[stockDFprod$summaryTable$stockSizeDescription != "kilograms"])
+#
+keys2014 <- setdiff(keys2014, keys2015)
+keys2014 <- keys2014[!keys2014 %in% c("her-vian", "her-irls", "nop-34-june", "pan-sknd")]
+keys2015 <- keys2015[!keys2015 %in% c("anb-8c9a", "pan-sknd", "tur-nsea")]
+#
+prodSummary <- stockDFprod$summaryTable[,colnames(stockDF2015$summaryTable)]
+referencePoints <- rbind(stockDF2015$referencePoints, stockDF2014$referencePoints, stockDFprod$referencePoints)
+summaryTable <- rbind(stockDF2015$summaryTable, stockDF2014$summaryTable, prodSummary)
+keys <- rbind(stockDF2015$keys, stockDF2014$keys, stockDFprod$keys)
 #
 nephDF <- read.csv("northSeaNephrops2015.csv")
 # Merge stockDF tables
-stockTable <- merge(stockDF$referencePoints, stockDF$keys, by = c("FishStockName", "AssessmentYear", "key"))
-stockTable <- merge(stockDF$summaryTable, 
+referencePoints$FishStockName <- tolower(as.character(referencePoints$FishStockName))
+summaryTable$fishstock <- tolower(as.character(summaryTable$fishstock))
+keys$FishStockName <- tolower(as.character(keys$FishStockName))
+#
+stockTable <- merge(referencePoints, keys, by = c("FishStockName", "AssessmentYear", "key"))
+stockTable <- merge(summaryTable, 
                     stockTable, 
                     by.x = c("fishstock", "AssessmentYear"),
                     by.y = c("FishStockName", "AssessmentYear"))
+stockTable <- stockTable[stockTable$AssessmentYear == 2014 &
+                         stockTable$fishstock %in% keys2014 |
+                         stockTable$AssessmentYear == 2015 &
+                         stockTable$fishstock %in% keys2015 |
+                         stockTable$AssessmentYear == "PROD" &
+                         stockTable$fishstock %in% prodKeys,]
+#
+stockTable$speciesID <- tolower(gsub( "-.*$", "", as.character(stockTable$fishstock)))
+stockInfo$speciesID <- tolower(gsub( "-.*$", "", as.character(stockInfo$Stock.code)))
+#
+stockTable <- merge(stockTable, stockInfo[,c("speciesID", "Type")], 
+            by = c("speciesID"), all.x = T, all.y = F)
+#
+stockTable <- stockTable[!duplicated(stockTable),]
+stockTable <- stockTable[stockTable$SpeciesName != "Psetta maxima (historic name)",]
+#
+stockTable$Type[stockTable$speciesID %in% c("bli", "lin","usk", "bss")] <- "Demersal"
+# tt <- stockTable[stockTable$fishstock == "pan-sknd",]
+
+#
 # Calculate F/Faverage and SSB/SSBaverage
 # stockTable <- ddply(stockTable, .(AssessmentYear, fishstock), mutate,
 #                     Faverage = mean(F, na.rm = T),
@@ -48,16 +90,7 @@ stockTable <- merge(stockDF$summaryTable,
 #                     SSBMSYBtrig = SSB/MSYBtrigger)
 #
 # Add Guild info from stockInfo
-stockTable$speciesID <- tolower(gsub( "-.*$", "", as.character(stockTable$fishstock)))
-stockInfo$speciesID <- tolower(gsub( "-.*$", "", as.character(stockInfo$Stock.code)))
 #
-stockTable <- merge(stockTable, stockInfo[,c("speciesID", "Type")], 
-            by = c("speciesID"), all.x = T, all.y = F)
-#
-stockTable <- stockTable[!duplicated(stockTable),]
-#
-stockTable$Type[stockTable$speciesID == "bss"] <- "Demersal"
-stockTable <- stockTable[stockTable$fishstock != "tur-nsea",]
 
 #
 df <- melt(stockTable, 
@@ -87,6 +120,7 @@ ecoregion <- "North Sea"
 guild <- "Flatfish"
 all.stock <- F
 all.ecoregion <- F
+all.guild <- F
 #
 #
 #
@@ -98,9 +132,12 @@ all.ecoregion <- F
 # plotMSY.SSB <- dat[dat$VARIABLE == "SSBMSYBtrig",]
 # 
 # 
-plotFun(ecoregion = "North Sea", guild = "Flatfish", all.stock = F, all.ecoregion = F)
+unique(df$ECOREGION)
+unique(df$GUILD)
 
-plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
+plotFun(ecoregion = ecoregion, guild = guild, all.stock = F, all.ecoregion = F, all.guild = F)
+
+plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F, all.guild = F) {
   #
   if(all.stock == T) {
     guild <- "All stocks"
@@ -118,6 +155,11 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
     ecoregion <- "All Ecoregions"
     dat <- df
     message("Plotting all guilds and ecoregions.")
+  }
+  if(all.guild == T) {
+    dat <- df[df$GUILD == guild,]
+    ecoregion <- "All Ecoregions"
+    message("Plotting all guilds.")
   }
   
   if(nrow(dat) > 0) {
@@ -178,13 +220,12 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
     METRICList_AVG <- METRICList_AVG[METRICList_AVG %in% METRICFactor_AVG]
     #
     # PLOT AVGs
-    png(filename = paste0(plotDir, ecoregion,"_", guild, "_AVG_v02.png"),
+    png(filename = paste0(plotDir, ecoregion,"_", guild, "_AVG_v03.png"),
         width = 172.4,
         height = 81.3 * length(METRICList_AVG),
         units = "mm",
         res = 600)
     #
-
     par(mfrow = c(length(METRICList_AVG), 1),
         mar=c(2.15, 2.25, 0.45, 0.25),
         oma = c(0, 0, 1.25, 0),
@@ -192,7 +233,7 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
         mgp=c(3, .35, 0),
         tck=-0.01,
         family = "Calibri")
-
+    #
     for(i in 1:length(METRICList_AVG)) {
       ## PLOT F Avg ##
       plotDat.i <- plotDat[plotDat$METRIC == METRICList_AVG[i],]
@@ -279,8 +320,7 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
     # PLOT msy #
     ############
     FmsyDat <- dat[dat$METRIC %in% c("F", "FMSY"),]
- 
-
+    # 
     FmsyDat <- dcast(FmsyDat, ASSESSMENTYEAR + ECOREGION + GUILD + STOCKID + YEAR ~ METRIC, value.var = "VALUE")
     FmsyDat$F.Fmsy <- FmsyDat$F / FmsyDat$FMSY
     FmsyDat <- melt(FmsyDat, id.vars = c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR"),
@@ -352,7 +392,7 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
       #
       METRICList_MSY <- METRICList_MSY[METRICList_MSY %in% METRICFactor_MSY]
       #
-      png(filename = paste0(plotDir, ecoregion, "_", guild, "_MSY_v02.png"),
+      png(filename = paste0(plotDir, ecoregion, "_", guild, "_MSY_v03.png"),
           width = 172.4,
           height = 81.3 * length(METRICList_MSY),
           units = "mm",
@@ -471,12 +511,13 @@ guilds <- unique(df$GUILD)
 # By guild
 for(i in 1:length(books)) {
   guilds <- unique(df$GUILD[df$ECOREGION == books[i]])
-  sapply(guilds, plotFun, ecoregion = books[i], all.stock = F, all.ecoregion = F)
+  sapply(guilds, plotFun, ecoregion = books[i], all.stock = F, all.ecoregion = F, all.guild = F)
 }
-# All stocks by ecoregion 
-for(i in 1:length(books)) {
-  guilds <- unique(df$GUILD[df$ECOREGION == books[i]])
-  sapply(guilds, plotFun, ecoregion = books[i], all.stock = T, all.ecoregion = F)
-}
+# All guilds 
+sapply(guilds, plotFun, ecoregion = "North Sea", all.stock = F, all.ecoregion = F, all.guild = T)
+#
 # All stocks overview
-plotFun(guild = "Demersal", ecoregion = "North Sea", all.stock = T, all.ecoregion = T)
+plotFun(guild = "Demersal", ecoregion = "North Sea", all.stock = T, all.ecoregion = T, all.guild = F)
+# plotFun(guild = "Demersal", ecoregion = "North Sea", all.stock = F, all.ecoregion = F, all.guild = T)
+
+
