@@ -8,6 +8,7 @@ library(extrafont)
 # library(XML)
 # library(parallel)
 # library(foreach)
+# library(data.table)
 plotDir = "output/"
 # This may take a minute to get the correct font
 fontTable <- fonttable()
@@ -24,9 +25,9 @@ stockInfo <- allDat[,c("ICES.Book", "Species", "Area",
 stockInfo <- stockInfo[!duplicated(stockInfo),]
 #
 # Load most recent data from Stock Assessment Graphs database
-# source("getTestStockSummary.R")
-# stockDF <- getTestSummaryTable(year = 2015)
-stockDF <- getSummaryTable(year = 2015)
+source("getTestStockSummary.R")
+stockDF <- getTestSummaryTable(year = 2015)
+# stockDF <- getSummaryTable(year = 2015)
 #
 nephDF <- read.csv("northSeaNephrops2015.csv")
 # Merge stockDF tables
@@ -35,7 +36,6 @@ stockTable <- merge(stockDF$summaryTable,
                     stockTable, 
                     by.x = c("fishstock", "AssessmentYear"),
                     by.y = c("FishStockName", "AssessmentYear"))
-
 # Calculate F/Faverage and SSB/SSBaverage
 # stockTable <- ddply(stockTable, .(AssessmentYear, fishstock), mutate,
 #                     Faverage = mean(F, na.rm = T),
@@ -57,6 +57,8 @@ stockTable <- merge(stockTable, stockInfo[,c("speciesID", "Type")],
 stockTable <- stockTable[!duplicated(stockTable),]
 #
 stockTable$Type[stockTable$speciesID == "bss"] <- "Demersal"
+stockTable <- stockTable[stockTable$fishstock != "tur-nsea",]
+
 #
 df <- melt(stockTable, 
            id.vars = c("AssessmentYear", "EcoRegion", "Type", "fishstock", "Year"),
@@ -68,7 +70,12 @@ df <- melt(stockTable,
 colnames(df) <- c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR", "METRIC", "VALUE")
 #
 df <- rbind(df, nephDF)
+# Clean up MSYBtrigger == 0
+df$VALUE[df$VALUE == 0 &
+         df$METRIC == "MSYBtrigger"] <- NA
 
+df$VALUE[df$VALUE == 0 &
+         df$METRIC == "FMSY"] <- NA
 # tt <- df[!duplicated(df[, c("ECOREGION", "GUILD", "STOCKID")]),c("ECOREGION", "GUILD", "STOCKID")]
 # tt <- tt[order(tt[,"ECOREGION"]),]
 # write.csv(tt, file = "StockList_v01.csv", row.names = F)
@@ -76,13 +83,12 @@ df <- rbind(df, nephDF)
 # fMetric <- c("F", "HR", "F/Fmsy", "F/average")
 # bMetric <- c("SSB", "B/Bmsy", "B/Btrigger", "SSB/average", "TV abund", "B")
 
-ecoregion <- "Baltic Sea"
+ecoregion <- "North Sea"
 guild <- "Flatfish"
 all.stock <- F
 all.ecoregion <- F
 #
 #
-unique(df$ECOREGION)
 #
 # #F/Faverage SSB/SSBaverage
 # plotAVG.F <- dat[dat$VARIABLE %in% c("F"),]
@@ -92,7 +98,7 @@ unique(df$ECOREGION)
 # plotMSY.SSB <- dat[dat$VARIABLE == "SSBMSYBtrig",]
 # 
 # 
-plotFun(ecoregion = "Iceland and East Greenland", guild = "Short lived", all.stock = F, all.ecoregion = F)
+plotFun(ecoregion = "North Sea", guild = "Flatfish", all.stock = F, all.ecoregion = F)
 
 plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
   #
@@ -172,7 +178,7 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
     METRICList_AVG <- METRICList_AVG[METRICList_AVG %in% METRICFactor_AVG]
     #
     # PLOT AVGs
-    png(filename = paste0(plotDir, ecoregion,"_", guild, "_AVG_v01.png"),
+    png(filename = paste0(plotDir, ecoregion,"_", guild, "_AVG_v02.png"),
         width = 172.4,
         height = 81.3 * length(METRICList_AVG),
         units = "mm",
@@ -273,6 +279,8 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
     # PLOT msy #
     ############
     FmsyDat <- dat[dat$METRIC %in% c("F", "FMSY"),]
+ 
+
     FmsyDat <- dcast(FmsyDat, ASSESSMENTYEAR + ECOREGION + GUILD + STOCKID + YEAR ~ METRIC, value.var = "VALUE")
     FmsyDat$F.Fmsy <- FmsyDat$F / FmsyDat$FMSY
     FmsyDat <- melt(FmsyDat, id.vars = c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR"),
@@ -344,7 +352,7 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
       #
       METRICList_MSY <- METRICList_MSY[METRICList_MSY %in% METRICFactor_MSY]
       #
-      png(filename = paste0(plotDir, ecoregion, "_", guild, "_MSY_v01.png"),
+      png(filename = paste0(plotDir, ecoregion, "_", guild, "_MSY_v02.png"),
           width = 172.4,
           height = 81.3 * length(METRICList_MSY),
           units = "mm",
@@ -460,10 +468,15 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F) {
 
 books <- unique(df$ECOREGION)
 guilds <- unique(df$GUILD)
-
+# By guild
+for(i in 1:length(books)) {
+  guilds <- unique(df$GUILD[df$ECOREGION == books[i]])
+  sapply(guilds, plotFun, ecoregion = books[i], all.stock = F, all.ecoregion = F)
+}
+# All stocks by ecoregion 
 for(i in 1:length(books)) {
   guilds <- unique(df$GUILD[df$ECOREGION == books[i]])
   sapply(guilds, plotFun, ecoregion = books[i], all.stock = T, all.ecoregion = F)
 }
+# All stocks overview
 plotFun(guild = "Demersal", ecoregion = "North Sea", all.stock = T, all.ecoregion = T)
-dev.off()
