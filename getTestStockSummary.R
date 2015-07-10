@@ -12,7 +12,6 @@
 #' @export
 #
 #
-year = 2015
 getTestSummaryTable <- function(year = 2014) {
   # If you want all stocks for all years, then make year == 0
   #
@@ -39,11 +38,14 @@ getTestSummaryTable <- function(year = 2014) {
   allRefs[, numColsRefs] <- sapply(allRefs[, numColsRefs], function(x) as.numeric(x))
   allRefs[, c("FishStockName")] <- sapply(allRefs[, c("FishStockName")], function(x) as.character(x))
   #
-  summaryList <- paste0("http://iistest01/standardgraphs/StandardGraphsWebServices.asmx/getSummaryTable?key=",
-                        keys$key[keys$Status == " Published "  &
-                                   !keys$key %in% c(6794, 6576, 6748, 6534)])
+#   summaryList <- paste0("http://iistest01/standardgraphs/StandardGraphsWebServices.asmx/getSummaryTable?key=",
+#                         keys$key[keys$Status == " Published " &
+#                                  !keys$key %in% c(6794, 6748, 6534, 6662, 6525, 6717, 6693, 6800, 6677, 6765, 6752, 6797,
+#                                                   6612)])
+summaryList <- paste0("http://iistest01/standardgraphs/StandardGraphsWebServices.asmx/getSummaryTable?key=",
+                      keys$key[keys$Status == " Published "])
   #
-#   j = 1
+#   j = 12
   summaryDat <- data.frame()
   for(j in 1:length(summaryList)) { # Loop over all published summary tables and extract data
     summaryNames <-  xmlRoot(xmlTreeParse(summaryList[j], isURL = T))
@@ -71,9 +73,10 @@ getTestSummaryTable <- function(year = 2014) {
   } # close j loop
   #
   # Clean up data
-  numCols <- colnames(summaryDat)[!colnames(summaryDat) %in% c("fishstock", "units", "Fage")]
+  charCols <- c("fishstock", "units", "Fage", "stockSizeDescription", "stockSizeUnits", "fishingPressureDescription", "fishingPressureUnits")
+  numCols <- colnames(summaryDat)[!colnames(summaryDat) %in% charCols]
   summaryDat[, numCols] <- lapply(summaryDat[, numCols], function(x) as.numeric(x))
-  summaryDat[, c("fishstock", "units", "Fage")] <- lapply(summaryDat[, c("fishstock", "units", "Fage")], function(x) as.character(x))
+  summaryDat[, charCols] <- lapply(summaryDat[, charCols], function(x) as.character(x))
   #
   # Create new list with all summary tables and reference points
   newList <- list("summaryTable" = summaryDat, "referencePoints" = allRefs, "keys" = keys)
