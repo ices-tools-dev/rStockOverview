@@ -1,14 +1,14 @@
 rm(list = ls())
 ################
-library(rICES)
+# library(rICES)
 library(plyr)
 library(reshape2)
 library(RColorBrewer)
 library(extrafont)
 library(XML)
-library(parallel)
-library(foreach)
-library(data.table)
+# library(parallel)
+# library(foreach)
+# library(data.table)
 plotDir = "output/"
 # This may take a minute to get the correct font
 fontTable <- fonttable()
@@ -16,7 +16,6 @@ colList <- brewer.pal(n = 9, name = 'Set1')
 ltyList <- c(1,3:6)
 #
 if(!"Calibri" %in% fontTable$FamilyName) font_import(pattern="[C/c]alibri", prompt = FALSE)
-#
 #
 # Load data on ecosystem, books, guilds, etc.
 load("allDataPlotOverview_v001.rdat")
@@ -26,118 +25,38 @@ stockInfo <- stockInfo[!duplicated(stockInfo),]
 #
 # Load most recent data from Stock Assessment Graphs database
 source("getTestStockSummary.R")
-stockDFprod <- getTestSummaryTable(year = 2015)
-stockDF2015 <- getSummaryTable(year = 2015)
-stockDF2014 <- getSummaryTable(year = 2014)
-#
-stockDFprod$summaryTable$AssessmentYear <- "PROD"
-stockDFprod$referencePoints$AssessmentYear <- "PROD"
-stockDFprod$keys$AssessmentYear <- "PROD"
-#
-keys2014 <- tolower(stockDF2014$keys$FishStockName[stockDF2014$keys$Status == " Published "])
-keys2015 <- tolower(stockDF2015$keys$FishStockName[stockDF2015$keys$Status == " Published "])
-prodKeys <- unique(stockDFprod$summaryTable$fishstock[stockDFprod$summaryTable$stockSizeDescription != "kilograms"])
-#
-keys2014 <- setdiff(keys2014, keys2015)
-keys2014 <- keys2014[!keys2014 %in% c("her-vian", "her-irls", "nop-34-june", "pan-sknd")]
-keys2015 <- keys2015[!keys2015 %in% c("anb-8c9a", "pan-sknd", "tur-nsea")]
-#
-prodSummary <- stockDFprod$summaryTable[,colnames(stockDF2015$summaryTable)]
-referencePoints <- rbind(stockDF2015$referencePoints, stockDF2014$referencePoints, stockDFprod$referencePoints)
-summaryTable <- rbind(stockDF2015$summaryTable, stockDF2014$summaryTable, prodSummary)
-keys <- rbind(stockDF2015$keys, stockDF2014$keys, stockDFprod$keys)
-#
-nephDF <- read.csv("northSeaNephrops2015.csv")
-# Merge stockDF tables
-referencePoints$FishStockName <- tolower(as.character(referencePoints$FishStockName))
-summaryTable$fishstock <- tolower(as.character(summaryTable$fishstock))
-keys$FishStockName <- tolower(as.character(keys$FishStockName))
-#
-stockTable <- merge(referencePoints, keys, by = c("FishStockName", "AssessmentYear", "key"))
-stockTable <- merge(summaryTable, 
-                    stockTable, 
-                    by.x = c("fishstock", "AssessmentYear"),
-                    by.y = c("FishStockName", "AssessmentYear"))
-stockTable <- stockTable[stockTable$AssessmentYear == 2014 &
-                         stockTable$fishstock %in% keys2014 |
-                         stockTable$AssessmentYear == 2015 &
-                         stockTable$fishstock %in% keys2015 |
-                         stockTable$AssessmentYear == "PROD" &
-                         stockTable$fishstock %in% prodKeys,]
-#
-stockTable$speciesID <- tolower(gsub( "-.*$", "", as.character(stockTable$fishstock)))
+stockTable <- getTestSummaryTable(year = 2015)
+# 
 stockInfo$speciesID <- tolower(gsub( "-.*$", "", as.character(stockInfo$Stock.code)))
-#
-stockTable <- merge(stockTable, stockInfo[,c("speciesID", "Type")], 
-            by = c("speciesID"), all.x = T, all.y = F)
-#
-stockTable <- stockTable[!duplicated(stockTable),]
-stockTable <- stockTable[stockTable$SpeciesName != "Psetta maxima (historic name)",]
-#
-stockTable$Type[stockTable$speciesID %in% c("bli", "lin","usk", "bss")] <- "Demersal"
-# tt <- stockTable[stockTable$fishstock == "pan-sknd",]
-
-#
-# Calculate F/Faverage and SSB/SSBaverage
-# stockTable <- ddply(stockTable, .(AssessmentYear, fishstock), mutate,
-#                     Faverage = mean(F, na.rm = T),
-#                     SSBaverage = mean(SSB, na.rm = T))
-#
-# stockTable <- ddply(stockTable, .(fishstock), mutate,
-#                     FFavg = F/Faverage,
-#                     SSBSSBavg = SSB/SSBaverage,
-#                     FFmsy = F/FMSY,
-#                     SSBMSYBtrig = SSB/MSYBtrigger)
-#
-# Add Guild info from stockInfo
-#
-
+# 
+stockTable <- merge(stockTable, 
+                    stockInfo[,c("speciesID", "Type")],
+                    by = c("speciesID"), all.x = T, all.y = F)
+# 
+stockTable$Type[stockTable$STOCKID %in% c("hom-west", "mac-nea", "whb-comb")] <- "Pelagic"
+stockTable$Type[stockTable$STOCKID %in% c("usk-icel", "bss-47")] <- "Demersal"
 #
 df <- melt(stockTable, 
-           id.vars = c("AssessmentYear", "EcoRegion", "Type", "fishstock", "Year"),
-#            measure.vars = c("FFavg", "SSBSSBavg", "FFmsy", "SSBMSYBtrig"),
-           measure.vars = c("F", "SSB", "FMSY", "MSYBtrigger"),
+           id.vars = c("AssessmentYear", "EcoRegion", "Type", "STOCKID", "Year"),
+            measure.vars = c("F", "SSB", "FMSY", "MSYBtrigger"),
            variable.name = "METRIC",
            value.name = "VALUE")
 #
 colnames(df) <- c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR", "METRIC", "VALUE")
 #
-df <- rbind(df, nephDF)
 # Clean up MSYBtrigger == 0
 df$VALUE[df$VALUE == 0 &
          df$METRIC == "MSYBtrigger"] <- NA
-
+# 
 df$VALUE[df$VALUE == 0 &
          df$METRIC == "FMSY"] <- NA
-# tt <- df[!duplicated(df[, c("ECOREGION", "GUILD", "STOCKID")]),c("ECOREGION", "GUILD", "STOCKID")]
-# tt <- tt[order(tt[,"ECOREGION"]),]
-# write.csv(tt, file = "StockList_v01.csv", row.names = F)
-#
-# fMetric <- c("F", "HR", "F/Fmsy", "F/average")
-# bMetric <- c("SSB", "B/Bmsy", "B/Btrigger", "SSB/average", "TV abund", "B")
-
-ecoregion <- "North Sea"
-guild <- "Flatfish"
-all.stock <- F
-all.ecoregion <- F
-all.guild <- F
-#
-#
-#
-# #F/Faverage SSB/SSBaverage
-# plotAVG.F <- dat[dat$VARIABLE %in% c("F"),]
-# plotAVG.SSB <- dat[dat$VARIABLE == "SSBSSBavg",]
-# #F/FMSY SSB/MSYBtrigger
-# plotMSY.F <- dat[dat$VARIABLE == "FFmsy",]
-# plotMSY.SSB <- dat[dat$VARIABLE == "SSBMSYBtrig",]
 # 
-# 
-unique(df$ECOREGION)
-unique(df$GUILD)
-
-plotFun(ecoregion = ecoregion, guild = guild, all.stock = F, all.ecoregion = F, all.guild = F)
-
-plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F, all.guild = F) {
+plotFun <- function(guild, 
+                    ecoregion, 
+                    all.stock = F, 
+                    all.ecoregion = F, 
+                    all.guild = F
+                    ) {
   #
   if(all.stock == T) {
     guild <- "All stocks"
@@ -161,21 +80,9 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F, all.guil
     ecoregion <- "All Ecoregions"
     message("Plotting all guilds.")
   }
-  
+  plotAVG
   if(nrow(dat) > 0) {
-#     dat$METRIC[dat$Variable %in% fMetric] <- "F"
-#     dat$METRIC[dat$Variable %in% bMetric] <- "SSB"
-    #
-    # Calculate mean
-    #     anb-8c9a  and pan-sknd- Note that for these two stocks to calculate
-    # the plot of F/Fmsy no additional division should be made but to calculate
-    # the SSB/MSY Btrigger you should divide by 0.5 (because MSY Btrigger is 0.5 of BMSY).
-    
-    # Specify the ECOREGION, GUILD, 
-#     dat <- df[df$ECOREGION == "North Sea"  &
-#                 df$GUILD == "Demersal",]
-    #
-#     mean(dat$VALUE[dat$STOCKID == "nep-3-4" & dat$METRIC == "FMSY"])
+    #     
     datMean <- ddply(dat, .(METRIC, STOCKID), mutate,
                      meanVal = VALUE/ mean(VALUE, na.rm = T))
     #
@@ -186,29 +93,12 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F, all.guil
     # Overall mean
     overallMean <- ddply(datMean, .(METRIC, YEAR), summarize,
                          overallMean = mean(meanVal, na.rm = T))
-    # plot(overallMean$overallMean[overallMean$VARIABLE == "FMSY"], type = "b")
     plotDat <- rbind(data.frame(YEAR = overallMean$YEAR,
                                 STOCKID = "MEAN",
                                 meanVal = overallMean$overallMean,
                                 METRIC = overallMean$METRIC),
                      plotDat)
-
-#     datMean <- ddply(dat, .(Stock.code, METRIC), mutate,
-#                      meanVal = VALUE/ mean(VALUE, na.rm = T))
-#     #
-#     plotDat <- data.frame(YEAR = datMean$YEAR,
-#                           Stock.code = datMean$Stock.code,
-#                           meanVal = datMean$meanVal,
-#                           Metric = datMean$METRIC)
-#     # Overall mean
-#     overallMean <- ddply(datMean, .(YEAR, METRIC), summarize,
-#                          overallMean = mean(meanVal, na.rm = T))
-#     plotDat <- rbind(data.frame(YEAR = overallMean$YEAR,
-#                                 Stock.code = "MEAN",
-#                                 meanVal = overallMean$overallMean,
-#                                 Metric = overallMean$METRIC),
-#                      plotDat)
-#
+    #   
     stocks.avg <- data.frame("CODE" = unique(plotDat$STOCKID),
                              "COLOR" = c("grey40", colList[1:length(unique(plotDat$STOCKID)) - 1]),
                              "LWD" = c(4, rep(2, length(unique(plotDat$STOCKID)) - 1)))
@@ -503,6 +393,9 @@ plotFun <- function(guild, ecoregion, all.stock = F, all.ecoregion = F, all.guil
   } # Close no guild data "if" statement
   #
 } # Close plotFun function
+
+
+plotFun(ecoregion = "Celtic Sea and West of Scotland", guild = "Pelagic", all.stock = F, all.ecoregion = F, all.guild = F)
 
 
 
