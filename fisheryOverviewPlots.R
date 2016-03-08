@@ -1,6 +1,6 @@
 rm(list = ls())
 ################
-# devtools::install_github("ICES-dk/rICES", force = TRUE)
+devtools::install_github("ICES-dk/rICES", force = TRUE)
 library(rICES)
 library(dplyr)
 library(reshape2)
@@ -13,7 +13,6 @@ plotDir = "output/"
 # This may take a minute to get the correct font
 fontTable <- fonttable()
 colList <- brewer.pal(n = 9, name = 'Set1')
-# ltyList <- c(1,3:6)
 #
 if(!"Calibri" %in% fontTable$FamilyName) font_import(pattern="[C/c]alibri", prompt = FALSE)
 #
@@ -21,6 +20,7 @@ if(!"Calibri" %in% fontTable$FamilyName) font_import(pattern="[C/c]alibri", prom
 # GuildList taken from this master file:
 #  "https://community.ices.dk/Advice/Advice2015/Advice_books_2015/Master%20file%20for%20advice%20books%202015.xlsx"
 #  Much too large of an .xlsx to load... info will soon be in the RECO database to streamline process.
+# 
 guildList <- read.csv("~/git/ices-dk/rStockOverview/fisheryGuild.csv")
 colnames(guildList) <- c("STOCKID", "FisheryGuild")
 guildList$STOCKID <- tolower(guildList$STOCKID)
@@ -30,23 +30,14 @@ stockTable <- getSummaryTable(year = 2015)
 # Remove the extra turbot...
 stockTable <- stockTable[stockTable$SpeciesName != "Psetta maxima (historic name)", ]
 stockTable <- merge(guildList, stockTable, by = "STOCKID", all.y = TRUE)
-#
 # 
 # Clean up the fishing pressure descriptions and add a column describing the type of Fmsy
 stockTable$fishingPressureDescription <- gsub("Fishing Pressure: " , "", stockTable$fishingPressureDescription)
 stockTable$fishingPressureDescription <- gsub("Fishing pressure: " , "", stockTable$fishingPressureDescription)
 stockTable$FmsyDescription <- "FMSY"
-# stockTable$FmsyDescription[!is.na(stockTable$Fcap)] <- "Fcap"
-# stockTable$FMSY[stockTable$FmsyDescription == "Fcap"] <- stockTable$Fcap[stockTable$FmsyDescription == "Fcap"]
-
 # Clean up the stock size descriptions and add a column describing the type of MSYBtrigger
 stockTable$stockSizeDescription[stockTable$stockSizeDescription == "NA"] <- "Stock Size: Relative"
 stockTable$stockSizeDescription <- gsub("Stock Size: ", "", stockTable$stockSizeDescription)
-# stockTable$BmsyDescription <- "MSYBtrigger"
-# stockTable$BmsyDescription[!is.na(stockTable$MSYBescapement)] <- "MSYBescapement"
-# stockTable$MSYBtrigger[stockTable$BmsyDescription == "MSYBescapement"] <- 
-# stockTable$MSYBescapement[stockTable$BmsyDescription == "MSYBescapement"]
-
 # # Drop F/FMSY and B/BMSY stocks
 stockTable <- stockTable[stockTable$stockSizeDescription != "B/BMSY" |
                            stockTable$fishingPressureDescription != "F/FMSY",]
@@ -70,127 +61,80 @@ df$ECOREGION[df$ECOREGION == "North Sea"] <- "Greater North Sea"
 df$ECOREGION[df$ECOREGION == "Bay of Biscay and Iberian Sea"] <- "Bay of Biscay and Iberian waters"
 df$ECOREGION[df$ECOREGION == "Baltic Sea"] <- "The Baltic Sea"
 df$ECOREGION <- factor(df$ECOREGION)
-
-  # if(structure == c("ecoregion all guilds mean")){
-  # Plot #1 (Ecoregion all guilds mean)
-  datMean <- df %>%
-    filter(!is.na(VALUE)) %>% # remove NA VALUE
-    group_by(ECOREGION, GUILD, METRIC) %>%
-    mutate(tsMean = mean(VALUE)) %>%  # Average F|SSB (over time series) for each guild
-    group_by(ECOREGION, GUILD, METRIC, YEAR) %>%
-    mutate(guildMean = mean(VALUE),     # Average F|SSB (annual) for each guild 
-           plotValue = guildMean / tsMean)         # Annual F|SSBavg / F|SSBavg (time series)
-  # 
-  oMean <- datMean %>%
-    group_by(ECOREGION, METRIC, YEAR) %>% 
-    mutate(plotValue = mean(plotValue),
-           GUILD = "MEAN")   # Average F|SSB / F|SSBavg for each ecoregion
-    allDat <- rbind(datMean, oMean)
-    # 
-    allDat <- allDat %>%
+#
+df <- df %>%
+  filter(!is.na(VALUE)) %>% # remove NA VALUE
+  group_by(ECOREGION, METRIC, STOCKID) %>%
+  mutate(valueMean = mean(VALUE, na.rm = TRUE), # F|SSB Average for each STOCKID
+         stockValue = VALUE / valueMean) %>%  # F|SSB / valueMean
+  group_by(ECOREGION, GUILD, METRIC, YEAR) %>%
+  mutate(guildValue = mean(stockValue, na.rm = TRUE)) %>% # stockMean Average F|SSB for each GUILD
+  group_by(ECOREGION, METRIC, YEAR) %>%
+  mutate(ecoValue = mean(stockValue, na.rm = TRUE)) # stockMean Average F|SSB for each ECOREGION
+# 
+plotDat <- function(data, plotType = c("plot1", "plot2", "plot3")){
+  #
+  if(!plotType %in% c("plot1", "plot2", "plot3")) {
+    stop("Please specify the type of plot type.")
+  }
+  if(plotType == "plot1") {
+    # Plot #1 (Ecoregion all guilds mean)
+    allDat <- data %>%
       select(pageGroup = ECOREGION,
              lineGroup = GUILD,
              YEAR,
              plotGroup = METRIC,
-             plotValue) 
-    # assign each lineGroup within each pageGroup a color
-    plotList <- allDat %>%
-      group_by(pageGroup) %>%
-      select(pageGroup, lineGroup) %>%
-      mutate(nLines = n_distinct(lineGroup),
-             COLOR = NA) %>%
-      distinct(lineGroup) %>%
-      arrange(pageGroup)
+             plotValue = guildValue)
     # 
-    # For each pageGroup, attach colList
-    # Used to keep the same lineGroup the same color for different pageGroups... (clunky but works)
-    plotList$COLOR <- unlist(lapply(unique(plotList$pageGroup), 
-                                    function(x) colList[1:unique(plotList$nLines[plotList$pageGroup == x])]))
-    # When there are more than 9 lineGroups, make them all grey80, and mean grey40
-    plotList$COLOR[plotList$nLines > 9] <- "grey80"
-    plotList$COLOR[plotList$lineGroup == "MEAN"] <- "grey40"
-    # 
-    allDat <- full_join(plotList, allDat, by = c("pageGroup", "lineGroup"))
-    #
-    allDat <-
-      allDat %>%
-      group_by(pageGroup) %>%
-      mutate(nLines = n_distinct(lineGroup)) %>%
-      filter(nLines > 2 | lineGroup != "MEAN") # Remove the "MEAN" when only one lineGroup
-    #
- # close ecoregion all guilds mean
-
-
-  
-  # if(structure == "ecoregion by guild, guild mean") {
+    oMean <- data %>%
+      distinct(ECOREGION, METRIC, YEAR) %>% 
+      select(pageGroup = ECOREGION,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = ecoValue) %>%
+      mutate(lineGroup = "MEAN")
+  } #close plot1
+  #
+  if(plotType == "plot2") {
     # Plot #2 (all stocks by ecoregion and guild, guild mean)
-    datMean <- df %>%
-    filter(!is.na(VALUE)) %>% # remove NA VALUE
-    group_by(ECOREGION, STOCKID, METRIC) %>%
-    mutate(tsMean = mean(VALUE),
-           plotValue = VALUE / tsMean)   # Average F|SSB (over time series) for each stock
-    # 
-    oMean <- datMean %>%
-      group_by(ECOREGION, GUILD, METRIC, YEAR) %>% 
-      mutate(plotValue = mean(plotValue),
-             STOCKID = "MEAN")   # Average F|SSB / F|SSBavg for each stock
-    allDat <- rbind(datMean, oMean)
-    # 
-    allDat <- allDat %>%
+    allDat <- data %>%
       mutate(ECOGUILD = paste0(ECOREGION, ", ", GUILD)) %>%
       select(pageGroup = ECOGUILD,
+             # select(pageGroup = ECOREGION,
              lineGroup = STOCKID,
              YEAR,
              plotGroup = METRIC,
-             plotValue) 
-    # assign each lineGroup within each pageGroup a color
-    plotList <- allDat %>%
-      group_by(pageGroup) %>%
-      select(pageGroup, lineGroup) %>%
-      mutate(nLines = n_distinct(lineGroup),
-             COLOR = NA) %>%
-      distinct(lineGroup) %>%
-      arrange(pageGroup)
+             plotValue = stockValue)
     # 
-    # For each pageGroup, attach colList
-    # Used to keep the same lineGroup the same color for different pageGroups... (clunky but works)
-    plotList$COLOR <- unlist(lapply(unique(plotList$pageGroup), 
-                                    function(x) colList[1:unique(plotList$nLines[plotList$pageGroup == x])]))
-    # When there are more than 9 lineGroups, make them all grey80, and mean grey40
-    plotList$COLOR[plotList$nLines > 9] <- "grey80"
-    plotList$COLOR[plotList$lineGroup == "MEAN"] <- "grey40"
-    # 
-    allDat <- full_join(plotList, allDat, by = c("pageGroup", "lineGroup"))
-    #
-    allDat <-
-      allDat %>%
-      group_by(pageGroup) %>%
-      mutate(nLines = n_distinct(lineGroup)) %>%
-      filter(nLines > 2 | lineGroup != "MEAN") # Remove the "MEAN" when only one lineGroup
+    oMean <- data %>%
+      mutate(ECOGUILD = paste0(ECOREGION, ", ", GUILD)) %>%
+      distinct(ECOGUILD, METRIC, YEAR) %>% 
+      select(pageGroup = ECOGUILD,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = guildValue) %>%
+      mutate(lineGroup = "MEAN")
+  } #close plot2
   #
-# close ecoregion all stocks, guild mean
-
-
-# if(structure == "ecoregion all stocks, ecoregion mean") {
-  # Plot #3 (all stocks by ecoregion ecoregion mean)
-  datMean <- df %>%
-    filter(!is.na(VALUE)) %>% # remove NA VALUE
-    group_by(ECOREGION, STOCKID, METRIC) %>%
-    mutate(tsMean = mean(VALUE),
-           plotValue = VALUE / tsMean)   # Average F|SSB (over time series) for each stock
+  if(plotType == "plot3") {
+    # Plot #3 (all stocks by ecoregion mean)
+    allDat <- data %>%
+      select(pageGroup = ECOREGION,
+             lineGroup = STOCKID,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = stockValue)
+    # 
+    oMean <- data %>%
+      distinct(ECOREGION, METRIC, YEAR) %>% 
+      select(pageGroup = ECOREGION,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = ecoValue) %>%
+      mutate(lineGroup = "MEAN")
+  } # close plot3
   # 
-  oMean <- datMean %>%
-    group_by(ECOREGION, METRIC, YEAR) %>% 
-    mutate(plotValue = mean(plotValue),
-           STOCKID = "MEAN")   # Average F|SSB / F|SSBavg for each ecoregion
-  allDat <- rbind(datMean, oMean)
-  # 
-  allDat <- allDat %>%
-    select(pageGroup = ECOREGION,
-           lineGroup = STOCKID,
-           YEAR,
-           plotGroup = METRIC,
-           plotValue) 
+  allDat <- rbind(oMean, allDat)
   # assign each lineGroup within each pageGroup a color
   plotList <- allDat %>%
     group_by(pageGroup) %>%
@@ -198,12 +142,18 @@ df$ECOREGION <- factor(df$ECOREGION)
     mutate(nLines = n_distinct(lineGroup),
            COLOR = NA) %>%
     distinct(lineGroup) %>%
-    arrange(pageGroup)
+    arrange(pageGroup, lineGroup)
   # 
-  # For each pageGroup, attach colList
-  # Used to keep the same lineGroup the same color for different pageGroups... (clunky but works)
-  plotList$COLOR <- unlist(lapply(unique(plotList$pageGroup), 
-                                  function(x) colList[1:unique(plotList$nLines[plotList$pageGroup == x])]))
+  if(length(unique(plotList$lineGroup)) <= 10) {
+    jColors <- data.frame(lineGroup = unique(plotList$lineGroup),
+                          COLOR = colList[1:length(unique(plotList$lineGroup))])
+    plotList$COLOR <- as.character(jColors$COLOR[match(plotList$lineGroup, jColors$lineGroup)])
+  } else {
+    # For each pageGroup, attach colList
+    # Used to keep the same lineGroup the same color for different pageGroups... (clunky but works)
+    plotList$COLOR <- unlist(lapply(unique(plotList$pageGroup), 
+                                    function(x) colList[1:unique(plotList$nLines[plotList$pageGroup == x])]))
+  }
   # When there are more than 9 lineGroups, make them all grey80, and mean grey40
   plotList$COLOR[plotList$nLines > 9] <- "grey80"
   plotList$COLOR[plotList$lineGroup == "MEAN"] <- "grey40"
@@ -215,20 +165,11 @@ df$ECOREGION <- factor(df$ECOREGION)
     group_by(pageGroup) %>%
     mutate(nLines = n_distinct(lineGroup)) %>%
     filter(nLines > 2 | lineGroup != "MEAN") # Remove the "MEAN" when only one lineGroup
-  #
-# }
-
-  # Data should be in this format for the plotting functions, below:
-# Plot 1
-plotFisheryOverview(data = allDat, overallMean = TRUE, plotDir = plotDir, plotTitle = "_allGuilds-AVG_v2")
-# Plot 2
-plotFisheryOverview(data = allDat, overallMean = TRUE, plotDir = plotDir, plotTitle = "_allStocks-AVG_v2")
-# Plot 3
-plotFisheryOverview(data = allDat, overallMean = TRUE, plotDir = plotDir, plotTitle = "_allStocks_v2")
-
-
+  return(allDat)
+} # close plotDat function
+# 
 plotFisheryOverview <- function(data, overallMean = TRUE, plotDir = "~/", plotTitle) {
-   allDat <- data
+  allDat <- data
   for(pgGroup in unique(allDat$pageGroup)) { # Data grouped by PaGe (e.g., by ecoregion)
     all.pg <- allDat[allDat$pageGroup == pgGroup,]
     # 
@@ -259,21 +200,21 @@ plotFisheryOverview <- function(data, overallMean = TRUE, plotDir = "~/", plotTi
       } #  reorder lineGroupOrd if overallMean == T
       else {
         lineGroupOrd <- factor(unique(all.pg$lineGroup),
-                                      ordered = T)
-        } # reorder lineGroupOrd if overallMean == F
-      } # TRUE overallMean
+                               ordered = T)
+      } # reorder lineGroupOrd if overallMean == F
+    } # TRUE overallMean
     if(overallMean == FALSE ) {
       lineGroupOrd <- factor(unique(all.pg$lineGroup),
                              ordered = T)
-      } # FALSE overallMean
+    } # FALSE overallMean
     # 
-    for(plGroup in unique(all.pg$plotGroup)) { # Data grouped by PLot (e.g., F or SSB)
+    for(plGroup in unique(levels(all.pg$plotGroup))) { # Data grouped by PLot (e.g., F or SSB)
       #
       all.pl <- all.pg[all.pg$plotGroup == plGroup,]
       # 
       yRange <- c(0, max(all.pl$plotValue, na.rm =T) + max(all.pl$plotValue, na.rm = T) * .15)
       xRange <- c(min(all.pl$YEAR[!is.na(all.pl$plotValue)]),
-                    max(all.pl$YEAR[!is.na(all.pl$plotValue)]))
+                  max(all.pl$YEAR[!is.na(all.pl$plotValue)]))
       #
       plot(NA,
            type = "l",
@@ -333,3 +274,23 @@ plotFisheryOverview <- function(data, overallMean = TRUE, plotDir = "~/", plotTi
     dev.off()
   }# Close pgGroup
 } # Close function
+
+
+# Plot 1
+plotFisheryOverview(data = plotDat(data = df, plotType = "plot1"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allGuilds-AVG_v2")
+
+# Plot 2
+tt <- plotDat(data = df, plotType = "plot2")
+plotFisheryOverview(data = plotDat(data = df, plotType = "plot2"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allStocks-AVG_v2")
+# Plot 3
+plotFisheryOverview(data = plotDat(data = df, plotType = "plot3"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allStocks_v2")
+# 
