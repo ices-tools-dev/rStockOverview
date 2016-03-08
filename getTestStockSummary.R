@@ -24,9 +24,11 @@ getTestSummaryTable <- function(year = 2015) {
                                                       useInternalNodes =  T)),
                                  function(x) xmlSApply(x, xmlValue))), row.names = NULL)
   #
+  keys$Status <- gsub("[[:space:]]", "",  keys$Status)
+  #
   colnames(keys)[colnames(keys) == "FishStockName"] <- "STOCKID"
   refList <- paste0("http://standardgraphs.ices.dk/StandardGraphsWebServices.asmx/getFishStockReferencePoints?key=",
-                    unique(keys$key))
+                    unique(keys$key[keys$Status == "Published"]))
   #
   allRefs <- data.frame()
   for(i in 1:length(refList)) { # Loop over all reference points tables and extract data
@@ -43,9 +45,9 @@ getTestSummaryTable <- function(year = 2015) {
   allRefs[, c("FishStockName")] <- sapply(allRefs[, c("FishStockName")], function(x) as.character(x))
   colnames(allRefs)[colnames(allRefs) == "FishStockName"] <- "STOCKID"
   #
-  summaryList <- data.frame(key = keys$key[keys$Status == " Published "],
+  summaryList <- data.frame(key = unique(keys$key[keys$Status == "Published"]),
                             URL = paste0("http://standardgraphs.ices.dk/StandardGraphsWebServices.asmx/getSummaryTable?key=",
-                                          keys$key[keys$Status == " Published "]))
+                                         unique(keys$key[keys$Status == "Published"])))
   #
   summaryDat <- data.frame()
   for(j in 1:nrow(summaryList)) { # Loop over all published summary tables and extract data

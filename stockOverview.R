@@ -19,22 +19,20 @@ if(!"Calibri" %in% fontTable$FamilyName) font_import(pattern="[C/c]alibri", prom
 #
 # Load data on ecosystem, books, guilds, etc.
 load("allDataPlotOverview_v001.rdat")
-stockInfo <- allDat[,c("ICES.Book", "Species", "Area", 
-                       "Stock.code", "Type")]
-stockInfo <- stockInfo[!duplicated(stockInfo),]
 #
 # Load most recent data from Stock Assessment Graphs database
 source("getTestStockSummary.R")
 stockTable <- getTestSummaryTable(year = 2015)
 # 
-stockInfo$speciesID <- tolower(gsub( "-.*$", "", as.character(stockInfo$Stock.code)))
+# stockInfo$speciesID <- tolower(gsub( "-.*$", "", as.character(stockInfo$Stock.code)))
 # 
 stockTable <- merge(stockTable, 
                     stockInfo[,c("speciesID", "Type")],
-                    by = c("speciesID"), all.x = T, all.y = F)
+                    by = c("speciesID"), all.x = F, all.y = F)
+stockTable <- stockTable[!duplicated(stockTable),]
 # 
-stockTable$Type[stockTable$STOCKID %in% c("hom-west", "mac-nea", "whb-comb")] <- "Pelagic"
-stockTable$Type[stockTable$STOCKID %in% c("usk-icel", "bss-47")] <- "Demersal"
+# stockTable$Type[stockTable$STOCKID %in% c("hom-west", "mac-nea", "whb-comb")] <- "Pelagic"
+# stockTable$Type[stockTable$STOCKID %in% c("usk-icel", "bss-47")] <- "Demersal"
 #
 df <- melt(stockTable, 
            id.vars = c("AssessmentYear", "EcoRegion", "Type", "STOCKID", "Year"),
@@ -55,8 +53,7 @@ plotFun <- function(guild,
                     ecoregion, 
                     all.stock = F, 
                     all.ecoregion = F, 
-                    all.guild = F
-                    ) {
+                    all.guild = F) {
   #
   if(all.stock == T) {
     guild <- "All stocks"
