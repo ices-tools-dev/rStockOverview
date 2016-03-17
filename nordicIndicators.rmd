@@ -1,0 +1,156 @@
+---
+title: "Nordic Council Sustainable Development Indicators"
+author: "Prepared by: Scott I. Large"
+date: "17 March 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# devtools::install_github("ICES-dk/rICES", force = FALSE)
+# devtools::install_github("hadley/readxl", force = FALSE)
+library(rICES)
+library(readxl)
+library(dplyr)
+library(reshape2)
+library(RColorBrewer)
+library(dplyr)
+library(knitr)
+library(XML)
+library(stringr)
+library(ggplot2)
+# 
+plotDir = "output/"
+stockTable <- rICES::getSummaryTable(year = 2015)
+# 
+```
+
+## Guild and ecoregion
+
+The following stocks, guilds, and ecoregions have been included in the overview. F~MSY~ F, SSB, and MSY B~trigger~ were downloaded from [ICES Stock Assessment Graphs](http://ices.dk/marine-data/tools/Pages/stock-assessment-graphs.aspx). Click the links to see the [aggregated data](github.com/ices-dk/rStockOverview/NordicCouncilRefPoints.csv) and [R code](github.com/ices-dk/rStockOverview/nordicIndicators.rmd) used to download and plot  [Figure 1](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ALL.png) and [Figure 2](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ecoregion-guild.png).
+
+For questions, please email <A HREF="mailto:scott.large@ices.dk?subject=Nordic Council plots">scott.large@ices.dk</A>.
+
+```{r guildlist, echo=FALSE, include=TRUE}
+# 
+guildList <- read.csv("~/git/ices-dk/rStockOverview/fisheryGuild.csv")
+# 
+guildList <- guildList %>%
+  rename(Stock = Stock.code,
+         GUILD = Fisheries.Guild) %>%
+  filter(GUILD %in% c("pelagic", "benthic", "demersal")) %>%
+  mutate(Stock = tolower(Stock),
+         Stock = gsub("[[:space:]]", "", Stock))
+# 
+
+overTable <- guildList %>%
+  inner_join(stockTable, c("Stock" = "STOCKID")) %>%
+  rename(ECOREGION = EcoRegion) %>%
+  distinct(ECOREGION, GUILD, Stock) %>%
+  select(ECOREGION, GUILD, Stock, FMSY, MSYBtrigger) %>%
+  filter(ECOREGION %in% c("North Sea", "Iceland and East Greenland",
+                          "Widely distributed and migratory stocks",
+                          "Baltic Sea", "Faroe Plateau Ecosystem",
+                          "Barents Sea and Norwegian Sea")) %>%
+  filter(!is.na(FMSY) | !is.na(MSYBtrigger)) %>%
+  arrange(ECOREGION, GUILD)
+# 
+knitr::kable(overTable, format="markdown")
+```
+
+
+```{r stocktable, echo = FALSE}
+# 
+df <- guildList %>%
+  inner_join(stockTable, c("Stock" = "STOCKID")) %>%
+  rename(ECOREGION = EcoRegion) %>%
+  filter(SpeciesName != "Psetta maxima (historic name)" &
+           Stock %in% unique(guildList$Stock) &
+           ECOREGION %in% c("North Sea", "Iceland and East Greenland",
+                          "Widely distributed and migratory stocks",
+                          "Baltic Sea", "Faroe Plateau Ecosystem",
+                          "Barents Sea and Norwegian Sea")) %>% 
+  mutate(fishingPressureDescription = gsub("Fishing Pressure: " , "", fishingPressureDescription), 
+         fishingPressureDescription = gsub("Fishing pressure: " , "", fishingPressureDescription),
+         stockSizeDescription = ifelse(stockSizeDescription == "NA", "Stock Size: Relative", stockSizeDescription),
+         FmsyDescription = "FMSY",
+         stockSizeDescription = gsub("Stock Size: ", "", stockSizeDescription)) %>%
+  filter(stockSizeDescription != "B/BMSY" |
+           fishingPressureDescription != "F/FMSY") %>%
+  group_by(Stock) %>%
+  mutate(F_FMSY = F / FMSY,
+         SSB_MSYBtrigger = SSB / MSYBtrigger) %>% 
+  melt(id.vars = c("AssessmentYear",  "ECOREGION", "GUILD","Stock", "Year"),
+       measure.vars = c("F_FMSY", "SSB_MSYBtrigger"),
+       variable.name = "METRIC",
+       value.name = "VALUE") %>%
+  rename(STOCKID = Stock,
+         YEAR = Year,
+         stockValue = VALUE) %>%
+  filter(!is.na(stockValue)) %>% # remove NA VALUE
+  group_by(ECOREGION, GUILD, METRIC, YEAR) %>%
+  mutate(ecoGuildMean = mean(stockValue)) %>%
+  group_by(ECOREGION, METRIC, YEAR) %>%
+  mutate(ecoValue = mean(stockValue)) %>%
+  group_by(METRIC, GUILD, YEAR) %>%
+  mutate(allMean = mean(stockValue))
+
+write.csv(df, file = "~/git/ices-dk/rStockOverview/NordicCouncilRefPoints.csv",
+          row.names = FALSE)
+# 
+```
+
+## Figure 1. ## 
+
+F/F~MSY~ and SSB/MSY B~trigger~ averaged by guild for all ecoregions. [Link to .png](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ALL.png)
+
+```{r echo = FALSE, include = TRUE}
+df %>%
+  ungroup() %>%
+  distinct(GUILD, METRIC, YEAR) %>%
+  ggplot(aes(x = YEAR, y = allMean, col = GUILD)) +
+  geom_line() +
+  geom_hline(yintercept = 1, col = "grey40", linetype = "dashed") +
+  # scale_y_continuous(limits = c(0, 3.2)) +
+  scale_color_manual(values = c("#7fc97f","#ef3b2c","#662506")) +
+  facet_grid(~METRIC) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 12, angle = 0, hjust = 0),
+        strip.background = element_blank(),
+        legend.key = element_rect(colour = NA)) +
+  labs(x = "Year", y = "Metric")
+ggsave(filename = paste0(plotDir, "NordicCouncilRefPoints_All.png"), width = 6.5,
+       height = 4.5)
+```
+\pagebreak
+
+## Figure 2. ##  
+
+F/F~MSY~ and SSB/MSY B~trigger~ averaged for each ecoregion and guild. [Link to .png](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ecoregion-guildL.png)
+
+```{r echo = FALSE, include = TRUE}
+
+df %>%
+  mutate(ECOGUILD = paste0(ECOREGION,", ", GUILD)) %>%
+  ungroup() %>%
+  # select(ECOGUILD, METRIC, YEAR, ecoGuildMean) %>%
+  distinct(ECOGUILD, METRIC, YEAR) %>%
+  filter(YEAR >= 1990) %>%
+  ggplot(aes(x = YEAR, y = ecoGuildMean, col = METRIC)) +
+  geom_line() +
+  geom_hline(yintercept = 1, col = "grey40", linetype = "dashed") +
+  # scale_y_continuous(limits = c(0, 3.2)) +
+  facet_grid(GUILD ~ ECOREGION) +
+  scale_color_manual(values = c("#386cb0","#fdb462")) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 6, angle = 0, hjust = 0),
+        axis.text.x = element_text(size = 6, angle = 45),
+        strip.background = element_blank(),
+        legend.key = element_rect(colour = NA)) +
+  labs(x = "Year", y = "Metric")
+ggsave(filename = paste0(plotDir, "NordicCouncilRefPoints_ecoregion-guild.png"), width = 6.5,
+       height = 4.5)
+
+```
