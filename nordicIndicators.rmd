@@ -27,7 +27,7 @@ stockTable <- rICES::getSummaryTable(year = 2015)
 
 ## Guild and ecoregion
 
-The following stocks, guilds, and ecoregions have been included in the overview. F~MSY~ F, SSB, and MSY B~trigger~ were downloaded from [ICES Stock Assessment Graphs](http://ices.dk/marine-data/tools/Pages/stock-assessment-graphs.aspx). Click the links to see the [aggregated data](github.com/ices-dk/rStockOverview/NordicCouncilRefPoints.csv) and [R code](github.com/ices-dk/rStockOverview/nordicIndicators.rmd) used to download and plot  [Figure 1](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ALL.png) and [Figure 2](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ecoregion-guild.png).
+The following stocks, guilds, and ecoregions have been included in the overview. F~MSY~ F, SSB, and MSY B~trigger~ were downloaded from [ICES Stock Assessment Graphs](http://ices.dk/marine-data/tools/Pages/stock-assessment-graphs.aspx). Click the links to see the [aggregated data](https://github.com/ICES-dk/rStockOverview/blob/master/NordicCouncilRefPoints.csv) and [R code](https://github.com/ICES-dk/rStockOverview/blob/master/nordicIndicators.rmd) used to download and plot  [Figure 1](https://github.com/ICES-dk/rStockOverview/blob/master/output/NordicCouncilRefPoints_ALL.png) and [Figure 2](https://github.com/ICES-dk/rStockOverview/blob/master/output/NordicCouncilRefPoints_ecoregion-guild.png).
 
 For questions, please email <A HREF="mailto:scott.large@ices.dk?subject=Nordic Council plots">scott.large@ices.dk</A>.
 
@@ -102,7 +102,7 @@ write.csv(df, file = "~/git/ices-dk/rStockOverview/NordicCouncilRefPoints.csv",
 
 ## Figure 1. ## 
 
-F/F~MSY~ and SSB/MSY B~trigger~ averaged by guild for all ecoregions. [Link to .png](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ALL.png)
+F/F~MSY~ and SSB/MSY B~trigger~ averaged by guild for all ecoregions. [Link to .png](https://github.com/ICES-dk/rStockOverview/blob/master/output/NordicCouncilRefPoints_ALL.png)
 
 ```{r echo = FALSE, include = TRUE}
 df %>%
@@ -120,14 +120,14 @@ df %>%
         strip.background = element_blank(),
         legend.key = element_rect(colour = NA)) +
   labs(x = "Year", y = "Metric")
-ggsave(filename = paste0(plotDir, "NordicCouncilRefPoints_All.png"), width = 6.5,
+ggsave(filename = paste0(plotDir, "NordicCouncilRefPoints_ALL.png"), width = 6.5,
        height = 4.5)
 ```
 \pagebreak
 
 ## Figure 2. ##  
 
-F/F~MSY~ and SSB/MSY B~trigger~ averaged for each ecoregion and guild. [Link to .png](github.com/ices-dk/rStockOverview/Output/NordicCouncilRefPoints_ecoregion-guildL.png)
+F/F~MSY~ and SSB/MSY B~trigger~ averaged for each ecoregion and guild. [Link to .png](https://github.com/ICES-dk/rStockOverview/blob/master/output/NordicCouncilRefPoints_ecoregion-guild.png)
 
 ```{r echo = FALSE, include = TRUE}
 
