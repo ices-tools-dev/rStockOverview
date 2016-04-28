@@ -72,6 +72,7 @@ df <- df %>%
   group_by(ECOREGION, METRIC, YEAR) %>%
   mutate(ecoValue = mean(stockValue, na.rm = TRUE)) # stockMean Average F|SSB for each ECOREGION
 # 
+# write.csv(df, file = "fisheryOverviewData.csv", row.names = FALSE)
 plotDat <- function(data, plotType = c("plot1", "plot2", "plot3")){
   #
   if(!plotType %in% c("plot1", "plot2", "plot3")) {
@@ -172,6 +173,11 @@ plotFisheryOverview <- function(data, overallMean = TRUE, plotDir = "~/", plotTi
   allDat <- data
   for(pgGroup in unique(allDat$pageGroup)) { # Data grouped by PaGe (e.g., by ecoregion)
     all.pg <- allDat[allDat$pageGroup == pgGroup,]
+    # 
+    if(exists(x = "all.pg$plotGroup") == FALSE) {
+      all.pg$plotGroup <- "NONE"
+    }
+    all.pg$plotGroup <- factor(all.pg$plotGroup)   
     # 
     plotFileName = paste0(plotDir, pgGroup, plotTitle, ".png")
     # PLOT AVG
