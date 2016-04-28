@@ -1,0 +1,94 @@
+"ECOREGION","GUILD","STOCKID","F.Year","F.Fmsy","SSB.Year","SSB.Btrigger"
+"Baltic Sea","Demersal","cod-2224",2014,3.23846153846154,2015,0.61828125
+"Baltic Sea","Flatfish","ple-2123",2014,0.502702702702703,2015,2.90527642715649
+"Baltic Sea","Pelagic","her-2532-gor",2014,0.718181818181818,2015,1.666785
+"Baltic Sea","Pelagic","her-30",2014,1.02666666666667,2015,2.11854746835443
+"Baltic Sea","Pelagic","her-3a22",2014,0.815625,2015,1.18040909090909
+"Baltic Sea","Pelagic","her-riga",2014,1.06875,2015,1.50578333333333
+"Baltic Sea","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"Barents Sea and Norwegian Sea","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"Bay of Biscay and Iberian Sea","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"Celtic Sea and West of Scotland","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"Faroe Plateau Ecosystem","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"Iceland and East Greenland","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"North Sea","Pelagic","hom-west",2014,0.953846153846154,2015,1.14022411779816
+"Baltic Sea","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"Barents Sea and Norwegian Sea","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"Bay of Biscay and Iberian Sea","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"Celtic Sea and West of Scotland","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"Faroe Plateau Ecosystem","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"Iceland and East Greenland","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"North Sea","Pelagic","mac-nea",2014,1.54090909090909,2015,1.20668533333333
+"Baltic Sea","Pelagic","spr-2232",2014,1.56538461538462,2015,1.32105263157895
+"Baltic Sea","Short lived","spr-2232",2014,1.56538461538462,2015,1.32105263157895
+"Baltic Sea","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"Barents Sea and Norwegian Sea","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"Bay of Biscay and Iberian Sea","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"Celtic Sea and West of Scotland","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"Faroe Plateau Ecosystem","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"Iceland and East Greenland","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"North Sea","Pelagic","whb-comb",2014,1.42666666666667,2014,1.76222222222222
+"Barents Sea and Norwegian Sea","Demersal","cod-arct",2014,1.1925,2015,2.47608695652174
+"Barents Sea and Norwegian Sea","Demersal","had-arct",2014,0.434285714285714,2015,9.625
+"Bay of Biscay and Iberian Sea","Demersal","anb-8c9a",2014,0.587,2015,0.98
+"Bay of Biscay and Iberian Sea","Demersal","anp-8c9a",2014,1.31578947368421,NA,NA
+"Bay of Biscay and Iberian Sea","Demersal","hke-nrtn",2014,1.25925925925926,2015,5.38997835497836
+"Celtic Sea and West of Scotland","Demersal","hke-nrtn",2014,1.25925925925926,2015,5.38997835497836
+"Bay of Biscay and Iberian Sea","Demersal","hke-soth",2014,2.8375,NA,NA
+"Bay of Biscay and Iberian Sea","Flatfish","mgb-8c9a",2014,2.31176470588235,2015,1.42891304347826
+"Bay of Biscay and Iberian Sea","Flatfish","mgw-8c9a",2014,2.12941176470588,2015,1.1967032967033
+"Bay of Biscay and Iberian Sea","Flatfish","sol-bisc",2014,1.84615384615385,2015,0.924
+"Bay of Biscay and Iberian Sea","Pelagic","hom-soth",2014,0.4,NA,NA
+"Celtic Sea and West of Scotland","Crustacean","nep-11",2014,0.880733944954128,2015,2.67097966728281
+"Celtic Sea and West of Scotland","Crustacean","nep-12",2014,0.471544715447154,2015,1.96653543307087
+"Celtic Sea and West of Scotland","Crustacean","nep-13",2014,1.3780487804878,2015,3.1433506044905
+"Celtic Sea and West of Scotland","Crustacean","nep-14",2014,0.680909090909091,2015,1.68857142857143
+"Celtic Sea and West of Scotland","Crustacean","nep-15",2014,1.02292397660819,2015,1.33333333333333
+"Celtic Sea and West of Scotland","Crustacean","nep-16",2014,0.584,NA,NA
+"Celtic Sea and West of Scotland","Crustacean","nep-17",2014,0.78656,2015,1.02962962962963
+"Celtic Sea and West of Scotland","Crustacean","nep-19",2014,0.483950617283951,NA,NA
+"Celtic Sea and West of Scotland","Crustacean","nep-22",2014,0.72,NA,NA
+"Celtic Sea and West of Scotland","Demersal","bss-47",2014,2.91538461538462,2015,0.865625
+"Celtic Sea and West of Scotland","Demersal","cod-7e-k",2014,1.7875,2015,0.745242718446602
+"Celtic Sea and West of Scotland","Demersal","cod-scow",2014,4.68947368421053,2015,0.152863636363636
+"Celtic Sea and West of Scotland","Demersal","had-7b-k",2014,1.4875,2015,3.3387
+"Celtic Sea and West of Scotland","Demersal","had-rock",2014,2.12,2015,1.45022222222222
+"Celtic Sea and West of Scotland","Demersal","whg-7e-k",2014,0.996875,2015,2.0763
+"Celtic Sea and West of Scotland","Flatfish","meg-4a6a",2014,0.303,2014,1.84
+"Celtic Sea and West of Scotland","Flatfish","sol-celt",2014,1.40645161290323,2015,1.19090909090909
+"Celtic Sea and West of Scotland","Flatfish","sol-echw",2014,0.703703703703704,2015,1.59
+"Celtic Sea and West of Scotland","Flatfish","sol-iris",2014,0.6625,2015,0.32
+"Celtic Sea and West of Scotland","Pelagic","her-67bc",2014,0.58125,2015,0.473643902439024
+"Celtic Sea and West of Scotland","Pelagic","her-irls",2014,0.715384615384615,2015,1.6655
+"Celtic Sea and West of Scotland","Pelagic","her-nirs",2014,0.95,2015,1.85610526315789
+"Faroe Plateau Ecosystem","Demersal","cod-farp",2014,1.2875,2015,0.469525
+"Faroe Plateau Ecosystem","Demersal","had-faro",2014,1.14,2015,0.518085714285714
+"Faroe Plateau Ecosystem","Demersal","sai-faro",2014,1.05,2015,1.49252727272727
+"Iceland and East Greenland","Demersal","cod-iceg",NA,NA,2015,2.48352727272727
+"Iceland and East Greenland","Demersal","had-iceg",NA,NA,2015,1.74126666666667
+"Iceland and East Greenland","Demersal","sai-icel",NA,NA,2015,2.1308
+"Iceland and East Greenland","Demersal","smr-5614",2014,1.05154639175258,2015,1.57590909090909
+"Iceland and East Greenland","Demersal","usk-icel",2014,1.3,NA,NA
+"Iceland and East Greenland","Pelagic","her-vasu",2014,1.15909090909091,NA,NA
+"North Sea","Crustacean","nep-3-4",2014,0.383544303797468,NA,NA
+"North Sea","Crustacean","nep-6",2014,1.60493827160494,2015,0.662004662004662
+"North Sea","Crustacean","nep-7",2014,0.466666666666667,2015,0.928442356342609
+"North Sea","Crustacean","nep-8",2014,1.78527607361963,2015,2.27397260273973
+"North Sea","Crustacean","nep-9",2014,1.24576271186441,2014,1.26335877862595
+"North Sea","Crustacean","pan-sknd",2014,0.539,2015,1.5
+"North Sea","Demersal","cod-347d",2014,1.19090909090909,2015,0.9024
+"North Sea","Demersal","had-346a",2014,0.651351351351351,2015,1.65511363636364
+"North Sea","Demersal","sai-3a46",2014,0.9625,2015,0.99635
+"North Sea","Flatfish","ple-eche",2014,0.448,2015,3.14376984434291
+"North Sea","Flatfish","ple-nsea",2014,0.947368421052632,2015,3.92040869565217
+"North Sea","Flatfish","sol-eche",2014,1.83333333333333,2015,1.017875
+"North Sea","Flatfish","sol-kask",2014,0.78695652173913,2015,0.831538461538462
+"North Sea","Flatfish","sol-nsea",2014,1.275,2015,1.11181081081081
+"North Sea","Pelagic","her-47d3",2014,0.751851851851852,NA,NA
+"North Sea","Pelagic","spr-nsea",2014,0.922857142857143,2015,4.05633802816901
+"North Sea","Short lived","spr-nsea",2014,0.922857142857143,2015,4.05633802816901
+"North Sea","Short lived","nop-34-oct",2014,0.388333333333333,2015,1.51758666666667
+"North Sea","Short lived","san-ns1",NA,NA,2015,0.831218604651163
+"North Sea","Short lived","san-ns2",NA,NA,2015,0.91545
+"North Sea","Short lived","san-ns3",NA,NA,2015,1.03653333333333
+"Widely distributed and migratory stocks","Pelagic","her-noss",2014,0.733333333333333,2015,0.7892
