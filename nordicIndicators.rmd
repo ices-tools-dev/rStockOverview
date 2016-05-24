@@ -96,18 +96,71 @@ df <- guildList %>%
   group_by(METRIC, GUILD, YEAR) %>%
   mutate(allMean = mean(stockValue))
 
-table.df <- df %>%
-  rename(`Assessment Year` = AssessmentYear,
-         Ecoregion = ECOREGION,
+levels(df$ECOREGION) <- c(levels(df$ECOREGION), "All Areas")
+levels(df$GUILD) <- c(levels(df$GUILD), "All Stocks")
+
+AA <- df %>%
+  select(-AssessmentYear,
+         -STOCKID,
+         -StockDescription,
+         -stockValue,
+         -ecoGuildMean,
+         -ecoValue) %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC) %>%
+  ungroup() %>%
+  mutate(GUILD = "All Stocks",
+         ECOREGION = "All Areas") %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC)
+
+AB <- df %>%
+  select(-AssessmentYear,
+         -STOCKID,
+         -StockDescription,
+         -stockValue,
+         -ecoGuildMean,
+         -allMean) %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC) %>%
+  ungroup() %>%
+  mutate(GUILD = "All Stocks") %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC)
+
+AC <- df %>%
+  select(-AssessmentYear,
+         -STOCKID,
+         -StockDescription,
+         -stockValue,
+         -allMean,
+         -ecoValue) %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC) %>%
+  ungroup() %>%
+  mutate(ECOREGION = "All Areas") %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC)
+
+AD <- df %>%
+  select(-AssessmentYear,
+         -STOCKID,
+         -StockDescription,
+         -stockValue,
+         -allMean,
+         -ecoValue) %>%
+  distinct(GUILD, ECOREGION, YEAR, METRIC)
+
+ta <- dcast(AA, GUILD + ECOREGION + METRIC ~ YEAR, value.var = "allMean")
+tb <- dcast(AB, GUILD + ECOREGION + METRIC ~ YEAR, value.var = "ecoValue")
+tc <- dcast(AC, GUILD + ECOREGION + METRIC ~ YEAR, value.var = "ecoGuildMean")
+td <- dcast(AD, GUILD + ECOREGION + METRIC ~ YEAR, value.var = "ecoGuildMean")
+
+allDat <- rbind(ta, tb, tc, td)
+allDat <- allDat %>%
+  arrange(METRIC,
+          GUILD,
+          ECOREGION)
+
+table.df <- allDat %>%
+  rename(Ecoregion = ECOREGION,
          `Fishery guild` = GUILD,
-         `ICES stock code` = STOCKID,
-         `Stock name` = StockDescription,
-         Year = YEAR,
-         Metric = METRIC,
-         `Value (per stock)` = stockValue,
-         `Mean (by ecoregion and guild)` = ecoGuildMean,
-         `Mean (by ecoregion)` = ecoValue,
-         `Mean (overall)` = allMean)
+         Metric = METRIC)
+
 
 write.csv(table.df, file = "~/git/ices-dk/rStockOverview/NordicCouncilRefPoints.csv",
           row.names = FALSE)
