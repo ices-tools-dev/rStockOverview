@@ -1,15 +1,13 @@
 rm(list = ls())
 ################
-# library(rICES)
-library(plyr)
+# library(plyr)
 library(reshape2)
 library(RColorBrewer)
 library(extrafont)
 library(XML)
-# library(parallel)
-# library(foreach)
-# library(data.table)
-plotDir = "output/"
+library(dplyr)
+library(tidyr)
+# 
 # This may take a minute to get the correct font
 fontTable <- fonttable()
 colList <- brewer.pal(n = 9, name = 'Set1')
@@ -19,28 +17,59 @@ if(!"Calibri" %in% fontTable$FamilyName) font_import(pattern="[C/c]alibri", prom
 #
 # Load data on ecosystem, books, guilds, etc.
 load("allDataPlotOverview_v001.rdat")
-#
+stockInfo <- stockInfo[, c("speciesID", "Type")]
+colnames(stockInfo) <- c("speciesID", "Guild")
+stockInfo <- stockInfo[!duplicated(stockInfo),]
+# 
 # Load most recent data from Stock Assessment Graphs database
-source("getTestStockSummary.R")
-stockTable <- getTestSummaryTable(year = 2015)
+source("~/git/ices-dk/rICES/R/getSummaryTable.R")
+stockTable <- getSummaryTable(year = 2016)
 # 
-# stockInfo$speciesID <- tolower(gsub( "-.*$", "", as.character(stockInfo$Stock.code)))
+# Set output directory
+plotDir = "output/2016/"
 # 
-stockTable <- merge(stockTable, 
-                    stockInfo[,c("speciesID", "Type")],
-                    by = c("speciesID"), all.x = F, all.y = F)
-stockTable <- stockTable[!duplicated(stockTable),]
+# Clean up the fishing pressure descriptions and add a column describing the type of Fmsy
+stockTable$fishingPressureDescription <- gsub("Fishing Pressure: " , "", stockTable$fishingPressureDescription)
+stockTable$fishingPressureDescription <- gsub("Fishing pressure: " , "", stockTable$fishingPressureDescription)
+stockTable$fishingPressureDescription <- gsub("msy" , "MSY", stockTable$fishingPressureDescription)
+stockTable$FmsyDescription <- "FMSY"
+keeperF <- c("F", "F/FMSY", "F in winter rings", "Harvest rate", "Harvest rate/FMSY", "Fishing Pressure")
+relativeF <- c("F/FMSY", "Harvest rate/FMSY") 
+stockTable$FmsyDescription[stockTable$fishingPressureDescription %in% relativeF] <- "F/FMSY"
 # 
-# stockTable$Type[stockTable$STOCKID %in% c("hom-west", "mac-nea", "whb-comb")] <- "Pelagic"
-# stockTable$Type[stockTable$STOCKID %in% c("usk-icel", "bss-47")] <- "Demersal"
-#
+# Clean up the stock size descriptions and add a column describing the type of MSYBtrigger
+stockTable$stockSizeDescription[stockTable$stockSizeDescription == "NA"] <- "Stock Size: Relative"
+stockTable$stockSizeDescription <- gsub("Stock Size: ", "", stockTable$stockSizeDescription)
+stockTable$stockSizeDescription <- gsub("Stock size: ", "", stockTable$stockSizeDescription)
+stockTable$stockSizeDescription <- gsub("msy", "MSY", stockTable$stockSizeDescription)
+stockTable$BmsyDescription <- "MSYBtrigger"
+stockTable$BmsyDescription[!is.na(stockTable$MSYBescapement)] <- "MSYBescapement"
+stockTable$MSYBtrigger[stockTable$BmsyDescription == "MSYBescapement"] <- stockTable$MSYBescapement[stockTable$BmsyDescription == "MSYBescapement"]
+keeperSSB <- c("SSB", "B/BMSY", "SSB & Biomass Age 4+", "UW Tv Index", "Stock Size", "Total biomass/BMSY")
+relativeSSB <- c("B/BMSY", "Harvest rate/FMSY") 
+stockTable$BmsyDescription[stockTable$BmsyDescription %in% relativeSSB] <- "SSB/BMSY"
+# 
+# Drop relative stocks and stocks with indices
+stockTable <- stockTable[stockTable$stockSizeDescription %in%  keeperSSB |
+                         stockTable$fishingPressureDescription %in% keeperF, ]
+# 
+# To make the SSB/MSYBtrigger comparison, B/BMSY stocks have already been calculated, so for B/BMSY stocks MSYBtrigger == 1
+stockTable$MSYBtrigger[stockTable$stockSizeDescription %in% relativeSSB] <- 1
+stockTable$FMSY[stockTable$fishingPressureDescription %in% relativeF] <- 1
+stockTable$MSYBtrigger[!stockTable$stockSizeDescription %in% keeperSSB] <- NA
+stockTable$FMSY[!stockTable$fishingPressureDescription %in% keeperF] <- NA
+# 
+stockTable  <- merge(stockTable,
+                    stockInfo,
+                    by = "speciesID", all.x = T, all.y = F)
+# 
 df <- melt(stockTable, 
-           id.vars = c("AssessmentYear", "EcoRegion", "Type", "STOCKID", "Year"),
-            measure.vars = c("F", "SSB", "FMSY", "MSYBtrigger"),
+           id.vars = c("AssessmentYear", "EcoRegion", "Guild", "STOCKID", "Year", "speciesID"),
+           measure.vars = c("F", "SSB", "FMSY", "MSYBtrigger"),
            variable.name = "METRIC",
            value.name = "VALUE")
 #
-colnames(df) <- c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR", "METRIC", "VALUE")
+colnames(df) <- c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR", "speciesID", "METRIC", "VALUE")
 #
 # Clean up MSYBtrigger == 0
 df$VALUE[df$VALUE == 0 &
@@ -49,365 +78,310 @@ df$VALUE[df$VALUE == 0 &
 df$VALUE[df$VALUE == 0 &
          df$METRIC == "FMSY"] <- NA
 # 
-plotFun <- function(guild, 
-                    ecoregion, 
-                    all.stock = F, 
-                    all.ecoregion = F, 
-                    all.guild = F) {
+df$ECOREGION[df$ECOREGION == "Barents Sea and Norwegian Sea"] <- "The Barents Sea and the Norwegian Sea"
+df$ECOREGION[df$ECOREGION == "Faroe Plateau Ecosystem"] <- "Faroe Plateau"
+df$ECOREGION[df$ECOREGION == "Celtic Sea and West of Scotland"] <- "Celtic Seas"
+df$ECOREGION[df$ECOREGION == "North Sea"] <- "Greater North Sea"
+df$ECOREGION[df$ECOREGION == "Bay of Biscay and Iberian Sea"] <- "Bay of Biscay and Iberian waters"
+df$ECOREGION[df$ECOREGION == "Baltic Sea"] <- "The Baltic Sea"
+# 
+df$GUILD[df$speciesID %in% c("bli", "lin")] <- "Demersal"
+df$GUILD[df$speciesID %in% c("ghl")] <- "Flatfish"
+#
+df <- df[!is.na(df$GUILD),]
+# 
+dfAverage <- df %>%
+  filter(!is.na(VALUE),
+         METRIC %in% c("F", "SSB")) %>% # remove NA VALUE
+  select(-speciesID) %>%
+  group_by(ECOREGION, METRIC, STOCKID) %>%
+  mutate(valueMean = mean(VALUE, na.rm = TRUE), # F|SSB Average for each STOCKID
+         stockValue = VALUE / valueMean) %>%  # F|SSB / valueMean
+  group_by(ECOREGION, GUILD, METRIC, YEAR) %>%
+  mutate(guildValue = mean(stockValue, na.rm = TRUE)) %>% # stockMean Average F|SSB for each GUILD
+  group_by(ECOREGION, METRIC, YEAR) %>%
+  mutate(ecoValue = mean(stockValue, na.rm = TRUE))  # stockMean Average F|SSB for each ECOREGION
+# 
+dfFMSY <- df %>%
+  filter(!is.na(VALUE) &
+         METRIC %in% c("F", "FMSY") &
+         YEAR < 2016) %>% # remove NA VALUE, select F values, and get rid of 2016 values
+  spread(METRIC, VALUE) %>%
+  mutate(METRIC = "F_FMSY",
+         VALUE = F/ FMSY) %>%
+  select(-F, -FMSY, -speciesID) %>%
+  mutate(stockValue = VALUE) %>%  
+  group_by(ECOREGION, GUILD, YEAR) %>%
+  mutate(guildValue = mean(VALUE, na.rm = TRUE)) %>% # stockMean Average F|SSB for each GUILD
+  group_by(ECOREGION, YEAR) %>%
+  mutate(ecoValue = mean(VALUE, na.rm = TRUE)) # stockMean Average F|SSB for each ECOREGION
+# 
+dfMSYBtrigger <- df %>%
+  filter(!is.na(VALUE) &
+           METRIC %in% c("SSB", "MSYBtrigger")) %>% # remove NA VALUE, select F values, and get rid of 2016 values
+  spread(METRIC, VALUE) %>%
+  mutate(METRIC = "SSB_MSYBtrigger",
+         VALUE = SSB/ MSYBtrigger) %>%
+  select(-SSB, -MSYBtrigger, -speciesID) %>%
+  mutate(stockValue = VALUE) %>%  
+  group_by(ECOREGION, GUILD, YEAR) %>%
+  mutate(guildValue = mean(VALUE, na.rm = TRUE)) %>% # stockMean Average F|SSB for each GUILD
+  group_by(ECOREGION, YEAR) %>%
+  mutate(ecoValue = mean(VALUE, na.rm = TRUE)) # stockMean Average F|SSB for each ECOREGION
+# 
+dfMSY <- dfMSYBtrigger %>%
+  full_join(dfFMSY)
+# 
+# write.csv(td, file = "20160718_StockOverviewData.csv", row.names = FALSE)
+plotDat <- function(data, plotType = c("plot1", "plot2", "plot3")){
   #
-  if(all.stock == T) {
-    guild <- "All stocks"
-    dat <- df[df$ECOREGION == ecoregion,]
+  if(!plotType %in% c("plot1", "plot2", "plot3")) {
+    stop("Please specify the type of plot type.")
   }
-  if(all.stock == F) {
-    dat <- df[df$ECOREGION == ecoregion &
-              df$GUILD %in% guild,]
-    if(nrow(dat) == 0) {
-      message("Data for ", guild, " in ", ecoregion, " does not exist.")
+  if(plotType == "plot1") {
+    # Plot #1 (Ecoregion all guilds mean)
+    allDat <- data %>%
+      select(pageGroup = ECOREGION,
+             lineGroup = GUILD,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = guildValue) %>%
+      filter(!is.na(plotValue))
+    # 
+    oMean <- data %>%
+      distinct(ECOREGION, METRIC, YEAR) %>% 
+      select(pageGroup = ECOREGION,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = ecoValue) %>%
+      mutate(lineGroup = "MEAN") %>%
+      filter(!is.na(plotValue))
+  } #close plot1
+  #
+  if(plotType == "plot2") {
+    # Plot #2 (all stocks by ecoregion and guild, guild mean)
+    allDat <- data %>%
+      mutate(ECOGUILD = paste0(ECOREGION, ", ", GUILD)) %>%
+      select(pageGroup = ECOGUILD,
+             # select(pageGroup = ECOREGION,
+             lineGroup = STOCKID,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = stockValue) %>%
+      filter(!is.na(plotValue))
+    # 
+    oMean <- data %>%
+      mutate(ECOGUILD = paste0(ECOREGION, ", ", GUILD)) %>%
+      distinct(ECOGUILD, METRIC, YEAR) %>% 
+      select(pageGroup = ECOGUILD,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = guildValue) %>%
+      mutate(lineGroup = "MEAN") %>%
+      filter(!is.na(plotValue))
+  } #close plot2
+  #
+  if(plotType == "plot3") {
+    # Plot #3 (all stocks by ecoregion mean)
+    allDat <- data %>%
+      select(pageGroup = ECOREGION,
+             lineGroup = STOCKID,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = stockValue) %>%
+      filter(!is.na(plotValue))
+    # 
+    oMean <- data %>%
+      distinct(ECOREGION, METRIC, YEAR) %>% 
+      select(pageGroup = ECOREGION,
+             YEAR,
+             plotGroup = METRIC,
+             plotValue = ecoValue) %>%
+      mutate(lineGroup = "MEAN") %>%
+      filter(!is.na(plotValue))
+  } # close plot3
+  # 
+  allDat <- rbind(oMean, allDat)
+  # assign each lineGroup within each pageGroup a color
+  plotList <- allDat %>%
+    group_by(pageGroup) %>%
+    select(pageGroup, lineGroup) %>%
+    mutate(nLines = n_distinct(lineGroup),
+           COLOR = NA) %>%
+    distinct(lineGroup) %>%
+    arrange(pageGroup, lineGroup)
+  # 
+  if(length(unique(plotList$lineGroup)) <= 10) {
+    jColors <- data.frame(lineGroup = unique(plotList$lineGroup),
+                          COLOR = colList[1:length(unique(plotList$lineGroup))])
+    plotList$COLOR <- as.character(jColors$COLOR[match(plotList$lineGroup, jColors$lineGroup)])
+  } else {
+    # For each pageGroup, attach colList
+    # Used to keep the same lineGroup the same color for different pageGroups... (clunky but works)
+    plotList$COLOR <- unlist(lapply(unique(plotList$pageGroup), 
+                                    function(x) colList[1:unique(plotList$nLines[plotList$pageGroup == x])]))
+  }
+  # When there are more than 9 lineGroups, make them all grey80, and mean grey40
+  plotList$COLOR[plotList$nLines > 9] <- "grey80"
+  plotList$COLOR[plotList$lineGroup == "MEAN"] <- "grey40"
+  # 
+  allDat <- full_join(plotList, allDat, by = c("pageGroup", "lineGroup"))
+  #
+  allDat <-
+    allDat %>%
+    group_by(pageGroup) %>%
+    mutate(nLines = n_distinct(lineGroup)) %>%
+    filter(nLines > 2 | lineGroup != "MEAN") # Remove the "MEAN" when only one lineGroup
+  return(allDat)
+} # close plotDat function
+# 
+# 
+plotFisheryOverview <- function(data, overallMean = TRUE, plotDir = "~/", plotTitle) {
+  allDat <- data
+  for(pgGroup in unique(allDat$pageGroup)) { # Data grouped by PaGe (e.g., by ecoregion)
+    all.pg <- allDat[allDat$pageGroup == pgGroup,]
+    # 
+    if(any(names(all.pg) == "plotGroup") == FALSE) {
+      all.pg$plotGroup <- "NONE"
     }
-  }
-  if(all.ecoregion == T) {
-    guild <- "All stocks"
-    ecoregion <- "All Ecoregions"
-    dat <- df
-    message("Plotting all guilds and ecoregions.")
-  }
-  if(all.guild == T) {
-    dat <- df[df$GUILD == guild,]
-    ecoregion <- "All Ecoregions"
-    message("Plotting all guilds.")
-  }
-  plotAVG
-  if(nrow(dat) > 0) {
-    #     
-    datMean <- ddply(dat, .(METRIC, STOCKID), mutate,
-                     meanVal = VALUE/ mean(VALUE, na.rm = T))
-    #
-    plotDat <- data.frame(YEAR = datMean$YEAR,
-                          STOCKID = datMean$STOCKID,
-                          meanVal = datMean$meanVal,
-                          METRIC = datMean$METRIC)
-    # Overall mean
-    overallMean <- ddply(datMean, .(METRIC, YEAR), summarize,
-                         overallMean = mean(meanVal, na.rm = T))
-    plotDat <- rbind(data.frame(YEAR = overallMean$YEAR,
-                                STOCKID = "MEAN",
-                                meanVal = overallMean$overallMean,
-                                METRIC = overallMean$METRIC),
-                     plotDat)
-    #   
-    stocks.avg <- data.frame("CODE" = unique(plotDat$STOCKID),
-                             "COLOR" = c("grey40", colList[1:length(unique(plotDat$STOCKID)) - 1]),
-                             "LWD" = c(4, rep(2, length(unique(plotDat$STOCKID)) - 1)))
-    stocks.avg <- lapply(stocks.avg, as.character)
-    #
-    METRICList_AVG <- c("F", "SSB")
-    METRICFactor_AVG <- factor(unique(plotDat$METRIC[!is.na(plotDat$meanVal)]),
-                               levels = c("F", "SSB"))
-    METRICList_AVG <- METRICList_AVG[METRICList_AVG %in% METRICFactor_AVG]
-    #
-    # PLOT AVGs
-    png(filename = paste0(plotDir, ecoregion,"_", guild, "_AVG_v03.png"),
+    # 
+    all.pg$plotGroup <- factor(all.pg$plotGroup)   
+    plotFileName = paste0(plotDir, pgGroup, plotTitle, ".png")
+    # PLOT AVG
+    png(filename = plotFileName,
         width = 172.4,
-        height = 81.3 * length(METRICList_AVG),
+        height = 162.6,
         units = "mm",
         res = 600)
     #
-    par(mfrow = c(length(METRICList_AVG), 1),
+    par(mfrow = c(2,1),
         mar=c(2.15, 2.25, 0.45, 0.25),
         oma = c(0, 0, 1.25, 0),
         usr = c(0,1,0,1),
         mgp=c(3, .35, 0),
         tck=-0.01,
         family = "Calibri")
-    #
-    for(i in 1:length(METRICList_AVG)) {
-      ## PLOT F Avg ##
-      plotDat.i <- plotDat[plotDat$METRIC == METRICList_AVG[i],]
-      plotDat.i <- plotDat.i[sort(order(plotDat.i$STOCKID == "MEAN")),]
-      stocks.avg.i <- stocks.avg
-      # Identify plotting parameters
-      yRange.i <- c(0, max(plotDat.i$meanVal, na.rm =T) + max(plotDat.i$meanVal, na.rm = T) * .15)
-      xRange.i <- c(min(plotDat.i$YEAR[!is.na(plotDat.i$meanVal)]),
-                    max(plotDat.i$YEAR[!is.na(plotDat.i$meanVal)]))
-      stocks.i <- factor(unique(plotDat.i$STOCKID), ordered = T)
+    # Order the lineGroup to make sure mean is plotted
+    if(overallMean == TRUE) {
+      if(any(all.pg$lineGroup == "MEAN")) {
+        lineGroupOrd <- relevel(factor(unique(all.pg$lineGroup),
+                                       ordered = F),
+                                ref = "MEAN")
+        if(length(lineGroupOrd) >= 10) {
+          lineGroupOrd <- factor(lineGroupOrd, levels = rev(levels(lineGroupOrd)))
+        } # close >= 10
+      } #  reorder lineGroupOrd if overallMean == T
+      else {
+        lineGroupOrd <- factor(unique(all.pg$lineGroup),
+                               ordered = T)
+      } # reorder lineGroupOrd if overallMean == F
+    } # TRUE overallMean
+    if(overallMean == FALSE ) {
+      lineGroupOrd <- factor(unique(all.pg$lineGroup),
+                             ordered = T)
+    } # FALSE overallMean
+    # 
+    for(plGroup in unique(levels(all.pg$plotGroup))) { # Data grouped by PLot (e.g., F or SSB)
       #
-      if(length(stocks.i) >= 10) {
-        levels(stocks.avg.i$COLOR) <- c(levels(stocks.avg.i$COLOR), "grey80")
-        stocks.avg.i$COLOR[stocks.avg.i$CODE != "MEAN"] <- "grey80"
-        stocks.i <- rev(levels(stocks.i))
-      }
-      #
-      if(length(stocks.i) < 10) {
-        stocks.i <- levels(stocks.i)
-      }
-      #
-      if(length(stocks.i) <= 2) {
-        stocks.i <- stocks.i[stocks.i != "MEAN"]
-        plotDat.i <- plotDat.i[plotDat.i$STOCKID %in% stocks.i,]
-      }
-      #
-      lab.i <- METRICList_AVG[i]
+      all.pl <- all.pg[all.pg$plotGroup == plGroup,]
+      yRange <- c(0, max(all.pl$plotValue, na.rm =T) + max(all.pl$plotValue, na.rm = T) * .15)
+      xRange <- c(min(all.pl$YEAR[!is.na(all.pl$plotValue)]),
+                  max(all.pl$YEAR[!is.na(all.pl$plotValue)]))
       #
       plot(NA,
            type = "l",
-           ylim = yRange.i,
-           xlim = xRange.i,
+           ylim = yRange,
+           xlim = xRange,
            yaxt = "n",
            xaxt = "n",
            ann = FALSE)
       abline(h = 1.0, lty = 2, col = "black", lwd = 1)
       #
-      for(j in 1:length(stocks.i)) {
-        if(all(is.na(plotDat.i$meanVal[plotDat.i$STOCKID == stocks.i[j]]))) {
-          stocks.i[j] <- NA
+      # Add lines according to the lnGroup
+      for(lnGroup in levels(lineGroupOrd)) {
+        if(all(is.na(all.pl$plotValue[all.pl$lineGroup == lnGroup]))) {
+          lnGroup <- NA
           next
-        }
-        if(!all(is.na(plotDat.i$meanVal[plotDat.i$STOCKID == stocks.i[j]]))) {
-          d <- data.frame(plotDat.i$meanVal[plotDat.i$STOCKID == stocks.i[j]],
-                          plotDat.i$YEAR[plotDat.i$STOCKID == stocks.i[j]])
+        } # close next if all NA
+        if(!all(is.na(all.pl$plotValue[all.pl$lineGroup == lnGroup]))) {
+          d <- data.frame(all.pl$plotValue[all.pl$lineGroup == lnGroup],
+                          all.pl$YEAR[all.pl$lineGroup == lnGroup])
           d <- d[order(d[,2]),]
-          col.d <- as.character(stocks.avg.i$COLOR[stocks.avg.i$CODE == stocks.i[j]])
-          lin.d <- as.numeric(as.character(stocks.avg.i$LWD[stocks.avg.i$CODE == stocks.i[j]]))
+          col.d <- as.character(unique(all.pl$COLOR[all.pl$lineGroup == lnGroup]))
+          lin.d <- ifelse(lnGroup == "MEAN", 4, 2) 
           lines(d[,2], d[,1], col = col.d, lwd = lin.d)
-        }
-      } # close j loop
+        } # close line plotting
+      } # close lnGroup
       #
-      axis(1, at = pretty(xRange.i), cex.axis = .85)
+      # Label axes
+      axis(1, at = pretty(xRange), cex.axis = .85)
       mtext("Year", side = 1, line = 1.25, cex= 1)
-      axis(2, at = pretty(yRange.i), cex.axis = .75, las = 1)
-      #
-      if(lab.i == "F") {
+      axis(2, at = pretty(yRange), cex.axis = .75, las = 1)
+      if(plGroup == "F") {
         mtext(expression("F/F"["average"]), side = 2, line = 1, cex= 1)
-      }
-      if(lab.i == "SSB") {
+      } # close F
+      if(plGroup == "SSB") {
         mtext(expression("SSB/SSB"["average"]), side = 2, line = 1, cex= 1)
-      }
+      } # close SSB 
+      if(plGroup == "F_FMSY") {
+        mtext(expression("F/F"["MSY"]), side = 2, line = 1, cex= 1)
+      } # close F
+      if(plGroup == "SSB_MSYBtrigger") {
+        mtext(expression("SSB/MSY B"["trigger"]), side = 2, line = 1, cex= 1)
+      } # close SSB 
+      mtext(pgGroup, side = 3, outer = T, cex= 1.5, font = 2)
+      #
       # Legend
-      if(length(stocks.i) <= 9) {
+      if(length(lineGroupOrd) <= 9) {
         legend("topright",
-               legend = stocks.avg.i$CODE[stocks.avg.i$CODE %in% stocks.i],
-               fill = stocks.avg.i$COLOR[stocks.avg.i$CODE %in% stocks.i],
+               legend = as.character(unique(all.pl$lineGroup)),
+               fill = as.character(unique(all.pl$COLOR)),
                bty="n",
                ncol = 3,
                cex = .85)
-      }
-      if(length(stocks.i) >= 10) {
+      } # Close less than 9 lines legend
+      if(length(lineGroupOrd) >= 10) {
         legend("topright",
                legend = "MEAN",
                fill = "grey40",
                bty="n",
                ncol = 1,
                cex = .85)
-      }
-    } # Close average loop
-    mtext(paste0(ecoregion, ", ", guild), side = 3, outer = T, cex= 1.5, font = 2)
+      } # close more than 10 lines legend
+    } # Close plGroup
     dev.off()
-    ############
-    # PLOT msy #
-    ############
-    FmsyDat <- dat[dat$METRIC %in% c("F", "FMSY"),]
-    # 
-    FmsyDat <- dcast(FmsyDat, ASSESSMENTYEAR + ECOREGION + GUILD + STOCKID + YEAR ~ METRIC, value.var = "VALUE")
-    FmsyDat$F.Fmsy <- FmsyDat$F / FmsyDat$FMSY
-    FmsyDat <- melt(FmsyDat, id.vars = c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR"),
-                    measure.vars = c("F", "FMSY", "F.Fmsy"),
-                    variable.name = "METRIC",
-                    value.name = "VALUE")
-    Fmsy <- FmsyDat[FmsyDat$METRIC == "F.Fmsy",]
-    FmsyNA <- sapply(unique(Fmsy$STOCKID), function(x) all(is.na(Fmsy$VALUE[Fmsy$STOCKID == x])))
-    Fmsy <- Fmsy[Fmsy$STOCKID %in% names(FmsyNA[FmsyNA == "FALSE"]),]
-    #
-    BmsyDat <- dat[dat$METRIC %in% c("SSB", "MSYBtrigger"),]
-    BmsyDat <- dcast(BmsyDat, ASSESSMENTYEAR + ECOREGION + GUILD + STOCKID + YEAR ~ METRIC, value.var = "VALUE")
-    BmsyDat$SSB.Btrigger <- BmsyDat$SSB / BmsyDat$MSYBtrigger
-    BmsyDat <- melt(BmsyDat, id.vars = c("ASSESSMENTYEAR", "ECOREGION", "GUILD", "STOCKID", "YEAR"),
-                    measure.vars = c("SSB", "MSYBtrigger", "SSB.Btrigger"),
-                    variable.name = "METRIC",
-                    value.name = "VALUE")
-    Bmsy <- BmsyDat[BmsyDat$METRIC == "SSB.Btrigger",]
-    BmsyNA <- sapply(unique(Bmsy$STOCKID), function(x) all(is.na(Bmsy$VALUE[Bmsy$STOCKID == x])))
-    Bmsy <- Bmsy[Bmsy$STOCKID %in% names(BmsyNA[BmsyNA == "FALSE"]),]
-    #
-    msyDat <- rbind(Fmsy, Bmsy)
-    msyDat <- msyDat[,c("YEAR", "STOCKID", "VALUE", "METRIC")]
-#     BmsyDat$Btrigger <- BmsyDat$VALUE[BmsyDat$METRIC == "MSYBtrigger"]
-#     BmsyDat <- BmsyDat[!apply(BmsyDat, 1, function(x){all(is.na(x))}) &
-#                        BmsyDat$METRIC != "MSYBtrigger",]
-    #
-      if(nrow(msyDat) > 0) {
-
-#     if(nrow(BmsyDat) > 0 & nrow(FmsyDat) > 0) {
-#       FmsyDat <- ddply(FmsyDat, .(METRIC, STOCKID), mutate,
-#                        F.Fmsy = VALUE/ Fmsy)
-#       BmsyDat <- ddply(BmsyDat, .(METRIC, STOCKID), mutate,
-#                        SSB.Btrigger = VALUE/ Btrigger)
-#       Bmsy <- BmsyDat[BmsyDat$METRIC == "SSB.Btrigger",]
-#       Fmsy <- FmsyDat[FmsyDat$METRIC == "F.Fmsy",]
-#       Bmsy <- data.frame(YEAR = BmsyDat$YEAR,
-#                          STOCKID = BmsyDat$STOCKID,
-#                          VALUE = BmsyDat$SSB.Btrigger,
-#                          METRIC = BmsyDat$METRIC)
-#       Fmsy <- data.frame(YEAR = FmsyDat$YEAR,
-#                          STOCKID = FmsyDat$STOCKID,
-#                          VALUE = FmsyDat$F.Fmsy,
-#                          METRIC = FmsyDat$METRIC)
-#       msyDat <- rbind(Fmsy, Bmsy)
-#       msyDat <- msyDat[,c("YEAR", "STOCKID", "VALUE", "METRIC")]
-      #
-      overallMSY <- ddply(msyDat, .(METRIC, YEAR), summarize,
-                          overallMean = mean(VALUE, na.rm = T))
-      #
-      msyDat <- rbind(data.frame(YEAR = overallMSY$YEAR,
-                                 STOCKID = "MEAN",
-                                 VALUE = overallMSY$overallMean,
-                                 METRIC = overallMSY$METRIC),
-                      msyDat)
-      #
-      stocks.msy <- data.frame("CODE" = unique(msyDat$STOCKID),
-                               "COLOR" = c("grey40", colList[1:length(unique(msyDat$STOCKID)) -1]),
-                               "LWD" = c(4, rep(2, length(unique(msyDat$STOCKID)) -1)))
-      #           if(nrow(stocks.msy) >= 10) {
-      #             levels(stocks.msy$COLOR) <- c(levels(stocks.msy$COLOR), "grey80")
-      #             stocks.msy$COLOR[stocks.msy$CODE != "MEAN"] <- "grey80"
-      #           }
-      stocks.msy <- lapply(stocks.msy, as.character)
-      #
-      METRICList_MSY <- c("F.Fmsy", "SSB.Btrigger")
-      METRICFactor_MSY <- factor(unique(msyDat$METRIC[!is.na(msyDat$VALUE)]),
-                                 levels = c("F.Fmsy", "SSB.Btrigger"))
-      #
-      METRICList_MSY <- METRICList_MSY[METRICList_MSY %in% METRICFactor_MSY]
-      #
-      png(filename = paste0(plotDir, ecoregion, "_", guild, "_MSY_v03.png"),
-          width = 172.4,
-          height = 81.3 * length(METRICList_MSY),
-          units = "mm",
-          res = 600)
-      #
-      par(mfrow = c(length(METRICList_MSY), 1),
-          mar=c(2.15, 2.25, 0.45, 0.25),
-          oma = c(0, 0, 1.25, 0),
-          usr = c(0, 1, 0, 1),
-          mgp=c(3, .35, 0),
-          tck=-0.01,
-          family = "Calibri")
-
-      for(k in 1:length(METRICList_MSY)) {
-        #             met <- levels(metricList_MSY)
-        #             if(met[k] == "F") {
-        #               par(mfg = c(1,1))
-        #             }
-        #             if(met[k] == "SSB") {
-        #               par(mfg = c(2,1))
-        #             }
-        ## PLOT F Avg ##
-        msyDat.k <- msyDat[msyDat$METRIC == METRICList_MSY[k],]
-        # Identify plotting parameters
-        yRange.k <- c(0, max(msyDat.k$VALUE, na.rm =T) + max(msyDat.k$VALUE, na.rm = T) * .15)
-        xRange.k <- c(min(msyDat.k$YEAR[!is.na(msyDat.k$VALUE)]),
-                      max(msyDat.k$YEAR[!is.na(msyDat.k$VALUE)]))
-        stocks.k <- factor(unique(msyDat.k$STOCKID), ordered = T)
-        stocks.msy.k <- stocks.msy
-        #
-        if(length(stocks.k) >= 10) {
-          #               if(nrow(stocks.msy) >= 10) {
-          levels(stocks.msy.k$COLOR) <- c(levels(stocks.msy.k$COLOR), "grey80")
-          stocks.msy.k$COLOR[stocks.msy.k$CODE != "MEAN"] <- "grey80"
-          #                         }
-          stocks.k <- rev(levels(stocks.k))
-        }
-        if(length(stocks.k) < 10) {
-          stocks.k <- levels(stocks.k)
-        }
-        if(length(stocks.k) <= 2) {
-          stocks.k <- stocks.k[stocks.k != "MEAN"]
-          msyDat.k <- msyDat.k[msyDat.k$STOCKID %in% stocks.k,]
-        }
-        #
-        lab.k <- METRICList_MSY[k]
-        #
-        plot(NA,
-             type = "l",
-             ylim = yRange.k,
-             xlim = xRange.k,
-             yaxt = "n",
-             xaxt = "n",
-             ann = FALSE)
-        abline(h = 1.0, lty = 2, col = "black", lwd = 1)
-        #
-        for(l in 1:length(stocks.k)) {
-          if(all(is.na(msyDat.k$VALUE[msyDat.k$STOCKID == stocks.k[l]]))) {
-            stocks.k[l] <- NA
-            next
-          }
-          if(!all(is.na(msyDat.k$VALUE[msyDat.k$STOCKID == stocks.k[l]]))) {
-            d <- data.frame(msyDat.k$VALUE[msyDat.k$STOCKID == stocks.k[l]],
-                            msyDat.k$YEAR[msyDat.k$STOCKID == stocks.k[l]])
-            d <- d[order(d[,2]),]
-            col.d <- as.character(stocks.msy.k$COLOR[stocks.msy.k$CODE == stocks.k[l]])
-            lin.d <- as.numeric(as.character(stocks.msy.k$LWD[stocks.msy.k$CODE == stocks.k[l]]))
-            lines(d[,2], d[,1], col = col.d, lwd = lin.d)
-          }
-        }
-        axis(1, at = pretty(xRange.k), cex.axis = .85)
-        #
-        mtext("Year", side = 1, line = 1.25, cex= 1)
-        #
-        axis(2, at = pretty(yRange.k), cex.axis = .75, las = 1)
-        #
-        if(lab.k == "F.Fmsy") {
-          mtext(expression("F/F"["MSY"]), side = 2, line = 1, cex= 1)
-        }
-        if(lab.k == "SSB.Btrigger") {
-          mtext(expression("SSB/MSY B"["trigger"]), side = 2, line = 1, cex= 1)
-        }
-        # Legend
-        if(length(stocks.k) <= 9) {
-          legend("topright",
-                 legend = stocks.msy.k$CODE[stocks.msy.k$CODE %in% stocks.k],
-                 fill = stocks.msy.k$COLOR[stocks.msy.k$CODE %in% stocks.k],
-                 bty = "n",
-                 ncol = 3,
-                 cex = .85)
-        }
-        #
-        if(length(stocks.k) >= 10) {
-          legend("topright",
-                 legend = "MEAN",
-                 fill = "grey40",
-                 bty = "n",
-                 ncol = 1,
-                 cex = .85)
-        }
-        #           if(logo == T) {
-        #             logoFun(img, x = 0.5, y = 0.5, size = .5, alpha = alpha)
-        #           }
-      } # Close l loop
-      mtext(paste0(ecoregion, ", ", guild), side = 3, outer = T, cex= 1.5, font = 2)
-      dev.off()
-    } # Close Fmsy and Btrigger "if" statement
-  } # Close no guild data "if" statement
-  #
-} # Close plotFun function
-
-
-plotFun(ecoregion = "Celtic Sea and West of Scotland", guild = "Pelagic", all.stock = F, all.ecoregion = F, all.guild = F)
-
-
-
-books <- unique(df$ECOREGION)
-guilds <- unique(df$GUILD)
-# By guild
-for(i in 1:length(books)) {
-  guilds <- unique(df$GUILD[df$ECOREGION == books[i]])
-  sapply(guilds, plotFun, ecoregion = books[i], all.stock = F, all.ecoregion = F, all.guild = F)
-}
-# All guilds 
-sapply(guilds, plotFun, ecoregion = "North Sea", all.stock = F, all.ecoregion = F, all.guild = T)
-#
-# All stocks overview
-plotFun(guild = "Demersal", ecoregion = "North Sea", all.stock = T, all.ecoregion = T, all.guild = F)
-# plotFun(guild = "Demersal", ecoregion = "North Sea", all.stock = F, all.ecoregion = F, all.guild = T)
-
+  }# Close pgGroup
+} # Close function
+# 
+# 
+# Plot 1
+plotFisheryOverview(data = plotDat(data = dfAverage, plotType = "plot1"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allGuilds-AVG_2016")
+# 
+plotFisheryOverview(data = plotDat(data = dfMSY, plotType = "plot1"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allGuilds-MSY_2016")
+# Plot 2
+plotFisheryOverview(data = plotDat(data = dfAverage, plotType = "plot2"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allStocks-AVG_2016")
+# 
+plotFisheryOverview(data = plotDat(data = dfMSY, plotType = "plot2"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allStocks-MSY_2016")
+# Plot 3
+plotFisheryOverview(data = plotDat(data = dfAverage, plotType = "plot3"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allStocks-AVG_2016")
+# 
+plotFisheryOverview(data = plotDat(data = dfMSY, plotType = "plot3"),
+                    overallMean = TRUE, 
+                    plotDir = plotDir, 
+                    plotTitle = "_allStocks-MSY_2016")
 
